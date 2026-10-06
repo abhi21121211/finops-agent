@@ -498,7 +498,9 @@ function LineItemsCard({ inv }: { inv: InvoiceDetail }) {
                 <TableCell className="font-mono text-xs">{li.hsn_sac ?? "—"}</TableCell>
                 <TableCell className="text-right tabular-nums">{Number(li.quantity)}</TableCell>
                 <TableCell className="text-right tabular-nums">{formatINR(li.unit_price)}</TableCell>
-                <TableCell className="text-right tabular-nums">{Number(li.tax_rate)}%</TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {li.tax_rate === null ? "—" : `${Number(li.tax_rate)}%`}
+                </TableCell>
                 <TableCell className="text-right tabular-nums">{formatINR(li.amount)}</TableCell>
               </TableRow>
             ))}

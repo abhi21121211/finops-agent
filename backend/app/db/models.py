@@ -154,7 +154,7 @@ class InvoiceLine(Base):
     hsn_sac: Mapped[str | None] = mapped_column(String(20))
     quantity: Mapped[Decimal] = mapped_column(Numeric(14, 3))
     unit_price: Mapped[Decimal] = mapped_column(Numeric(14, 2))
-    tax_rate: Mapped[Decimal] = mapped_column(Numeric(5, 2))
+    tax_rate: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
 
     invoice: Mapped[Invoice] = relationship(back_populates="lines")

@@ -258,6 +258,7 @@ async def run_case(
         error=error,
         route_reasons=values.get("route_reasons") or [],
         invoice_id=str(invoice_id),
+        validation_issues=values.get("validation_issues") or [],
     )
 
 

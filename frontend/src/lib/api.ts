@@ -30,7 +30,7 @@ export interface LineItem {
   hsn_sac: string | null;
   quantity: string;
   unit_price: string;
-  tax_rate: string;
+  tax_rate: string | null;
   amount: string;
 }
 

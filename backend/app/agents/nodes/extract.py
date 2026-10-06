@@ -9,7 +9,7 @@ from app.llm.router import LLMOutputError, LLMRouter, Tier, image_part, text_par
 from app.schemas.extraction import ExtractionOutput
 from app.storage import get_storage
 
-PROMPT = "extract_v2"
+PROMPT = "extract_v3"
 MAX_TEXT_CHARS = 12_000
 
 

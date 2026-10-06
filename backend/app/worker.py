@@ -174,7 +174,9 @@ class Run:
                         hsn_sac=li.get("hsn_sac"),
                         quantity=Decimal(str(li["quantity"])),
                         unit_price=Decimal(str(li["unit_price"])),
-                        tax_rate=Decimal(str(li["tax_rate"])),
+                        tax_rate=(
+                            None if li.get("tax_rate") is None else Decimal(str(li["tax_rate"]))
+                        ),
                         amount=Decimal(str(li["amount"])),
                     )
                 )

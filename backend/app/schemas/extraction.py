@@ -30,6 +30,14 @@ def _blank_to_none(v: Any) -> Any:
 
 
 Money = Annotated[Decimal, BeforeValidator(_to_decimal)]
+
+
+def _optional_decimal(v: Any) -> Any:
+    v = _blank_to_none(v)
+    return None if v is None else _to_decimal(v)
+
+
+OptMoney = Annotated[Decimal | None, BeforeValidator(_optional_decimal)]
 OptStr = Annotated[str | None, BeforeValidator(_blank_to_none)]
 OptDate = Annotated[date | None, BeforeValidator(_blank_to_none)]
 
@@ -39,7 +47,9 @@ class LineItem(BaseModel):
     hsn_sac: OptStr = None
     quantity: Money
     unit_price: Money
-    tax_rate: Money = Field(description="percent, e.g. 18 for 18%")
+    # Percent (18 = 18%). None when the invoice doesn't print a rate per line: many
+    # don't, and a guessed rate would make the tax check reject correct invoices.
+    tax_rate: OptMoney = Field(default=None, description="percent, e.g. 18 for 18%")
     amount: Money
 
 

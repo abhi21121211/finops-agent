@@ -117,6 +117,7 @@ class CaseResult:
     error: str | None = None
     route_reasons: list[str] = field(default_factory=list)
     invoice_id: str | None = None  # the eval tenant's invoice row
+    validation_issues: list[dict] = field(default_factory=list)
 
     @property
     def deferred(self) -> bool:
@@ -157,6 +158,7 @@ class CaseResult:
             "attempts": self.attempts,
             "error": self.error,
             "route_reasons": self.route_reasons,
+            "validation_issues": [f"{i['check']}: {i['message']}" for i in self.validation_issues],
         }
 
 

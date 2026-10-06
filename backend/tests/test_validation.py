@@ -203,3 +203,15 @@ def test_unknown_vendor_not_fixable():
 
 def test_invalid_gstin_not_double_reported_as_unknown_vendor():
     assert check_vendor_known(inv(vendor_gstin="27KAVCO4821K1ZK"), set()) == []
+
+
+def test_rate_check_skipped_when_invoice_prints_no_line_rates():
+    """Regression: half the templates print no per-line GST rate; a guessed rate made the
+    check reject correct invoices."""
+    line = {**sample_extraction()["invoice"]["line_items"][0], "tax_rate": None}
+    assert check_tax_maths(inv(line_items=[line])) == []
+
+
+def test_rate_check_still_runs_when_every_line_has_a_rate():
+    line = {**sample_extraction()["invoice"]["line_items"][0], "tax_rate": 12}
+    assert [i.field for i in check_tax_maths(inv(line_items=[line]))] == ["cgst"]

@@ -79,8 +79,13 @@ def check_tax_maths(inv: ExtractedInvoice) -> list[ValidationIssue]:
             )
         )
 
-    expected_tax = sum((li.amount * li.tax_rate / 100 for li in inv.line_items), Decimal(0))
-    if inv.line_items and abs(expected_tax - taxes) > TOLERANCE:
+    # Only when every line prints its GST rate; otherwise there is nothing to check against.
+    rated = inv.line_items and all(li.tax_rate is not None for li in inv.line_items)
+    expected_tax = sum(
+        (li.amount * li.tax_rate / 100 for li in inv.line_items if li.tax_rate is not None),
+        Decimal(0),
+    )
+    if rated and abs(expected_tax - taxes) > TOLERANCE:
         issues.append(
             _issue(
                 "tax_maths",

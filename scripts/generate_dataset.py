@@ -518,7 +518,8 @@ class Invoice:
                     "hsn_sac": ln.hsn,
                     "quantity": str(ln.quantity),
                     "unit_price": str(ln.unit_price),
-                    "tax_rate": str(ln.tax_rate),
+                    # Ground truth is what the page prints: no per-line rate column, no rate.
+                    "tax_rate": str(ln.tax_rate) if "gst" in self.template.columns else None,
                     "amount": str(ln.amount),
                 }
                 for ln in self.lines
