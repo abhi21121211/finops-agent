@@ -17,7 +17,7 @@ free-tier router). Nothing here is estimated.
 |---|---|
 | Field-level extraction accuracy (15 fields × 100 invoices) | **99.93%** |
 | Line-item F1 | **100%** |
-| Routing accuracy (95 cases within implemented rules) | **98.9%** |
+| Routing accuracy (95 cases within implemented rules) | **98.95%** |
 | False auto-approvals | **0** |
 | Auto-approval rate (with zero false approvals) | **70.5%** of invoices |
 | Three-way reconciliation status accuracy | **100%** |
