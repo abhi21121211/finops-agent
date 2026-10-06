@@ -19,12 +19,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check configuration
+        id: cfg
         run: |
           if [ -z "$HF_TOKEN" ] || [ -z "$HF_SPACE" ]; then
-            echo "::error::Set the HF_TOKEN secret and the HF_SPACE variable (see docs/deploy.md)."
-            exit 1
+            echo "::warning::Backend deploy skipped: set the HF_TOKEN secret and HF_SPACE variable (docs/deploy.md)."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Assemble Space repository
+        if: steps.cfg.outputs.ok == 'true'
         run: |
           mkdir space
           cp -r backend space/backend
@@ -32,6 +36,7 @@ jobs:
           mkdir -p space/infra/litellm && cp infra/litellm/config.yaml space/infra/litellm/
           cp deploy/hf-space/Dockerfile deploy/hf-space/start.sh deploy/hf-space/README.md space/
       - name: Push to the Space
+        if: steps.cfg.outputs.ok == 'true'
         working-directory: space
         run: |
           git init -q -b main

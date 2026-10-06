@@ -61,7 +61,8 @@ jobs:
         if: steps.keys.outputs.ok == 'true'
         run: |
           uv tool install 'litellm[proxy]'
-          litellm --config infra/litellm/config.yaml --port 4000 > litellm.log 2>&1 &
+          # LiteLLM would treat the job's DATABASE_URL as its own database and exit.
+          env -u DATABASE_URL litellm --config infra/litellm/config.yaml --port 4000 > litellm.log 2>&1 &
           for i in $(seq 1 60); do curl -sf localhost:4000/health/liveliness && break; sleep 2; done
 
       - name: Prepare backend and dataset

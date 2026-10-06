@@ -77,7 +77,13 @@ services:
     image: ghcr.io/berriai/litellm:main-stable
     profiles: [router]
     command: ["--config", "/app/config.yaml", "--port", "4000"]
-    env_file: .env
+    # Only the provider keys: LiteLLM would treat the app's DATABASE_URL as its own.
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
     ports: ["4001:4000"]
     volumes:
       - ./infra/litellm/config.yaml:/app/config.yaml:ro
