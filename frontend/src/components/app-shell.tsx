@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeftRight, ClipboardCheck, FileText, LogOut, ShoppingCart } from "lucide-react";
+import { ArrowLeftRight, ClipboardCheck, FileText, FlaskConical, LogOut, ShoppingCart } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useSyncExternalStore } from "react";
@@ -49,6 +49,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </NavLink>
             <NavLink href="/purchase-orders" active={pathname.startsWith("/purchase-orders")}>
               <ShoppingCart className="size-4" /> Purchase orders
+            </NavLink>
+            <NavLink href="/evals" active={pathname.startsWith("/evals")}>
+              <FlaskConical className="size-4" /> Evals
             </NavLink>
           </nav>
           <div className="ml-auto">

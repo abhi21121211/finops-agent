@@ -159,6 +159,58 @@ export interface StatementUpload {
   money_out: number;
 }
 
+export interface EvalRunSummary {
+  id: string;
+  created_at: string;
+  mode: string;
+  label: string | null;
+  git_sha: string | null;
+  model: string | null;
+  n_cases: number;
+  field_accuracy: number;
+  line_item_f1: number;
+  routing_accuracy: number;
+  false_auto_approvals: number;
+  auto_approval_rate: number;
+  match_accuracy: number | null;
+  avg_cost_usd: number;
+  p50_latency_ms: number;
+  p95_latency_ms: number;
+}
+
+export interface EvalCase {
+  case_id: string;
+  category: string;
+  requires: string[];
+  expected_route: string;
+  predicted_route: string | null;
+  expected_match: string | null;
+  predicted_match: string | null;
+  field_accuracy: number;
+  wrong_fields: { field: string; expected: string | null; actual: string | null }[];
+  line_items: { tp: number; predicted: number; expected: number; f1: number };
+  model: string | null;
+  latency_ms: number;
+  error: string | null;
+  route_reasons: string[];
+}
+
+export interface EvalRunDetail extends EvalRunSummary {
+  report: {
+    metrics: {
+      by_field: Record<string, number>;
+      by_model: Record<string, number>;
+      by_category: Record<string, number>;
+      false_auto_approvals_deferred: number;
+      n_gated: number;
+      errors: number;
+      avg_list_price_usd: number;
+    };
+    gate_failures: string[];
+    cases: EvalCase[];
+  };
+}
+
 export interface InvoiceDetail extends InvoiceSummary {
   extraction: Extraction | null;
   field_confidence: Record<string, number> | null;
@@ -252,6 +304,8 @@ export const api = {
     }),
   reprocess: (id: string) =>
     request<InvoiceDetail>(`/invoices/${id}/reprocess`, { method: "POST" }),
+  evalRuns: () => request<EvalRunSummary[]>("/evals/runs"),
+  evalRun: (id: string) => request<EvalRunDetail>(`/evals/runs/${id}`),
   reconciliation: () => request<ReconciliationRow[]>("/reconciliation"),
   purchaseOrders: () => request<PurchaseOrder[]>("/purchase-orders"),
   uploadStatement: (file: File) => {

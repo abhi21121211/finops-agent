@@ -1,6 +1,7 @@
 """Postgres checkpointer: every graph step is saved, so a run paused at human_review (or
 interrupted by a crash) resumes exactly where it stopped, even after a restart."""
 
+import re
 from contextlib import asynccontextmanager
 
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
@@ -11,7 +12,10 @@ from app.core.config import get_settings
 
 
 def psycopg_dsn(sqlalchemy_url: str) -> str:
-    return sqlalchemy_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+    """SQLAlchemy/asyncpg URL → libpq DSN. asyncpg spells SSL `ssl=require`, libpq
+    `sslmode=require` (hosted Postgres such as Supabase needs it)."""
+    dsn = sqlalchemy_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+    return re.sub(r"([?&])ssl=", r"\1sslmode=", dsn)
 
 
 @asynccontextmanager

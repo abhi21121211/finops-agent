@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: finops
+          POSTGRES_PASSWORD: finops
+          POSTGRES_DB: finops
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U finops" --health-interval 3s --health-retries 20
+    env:
+      DATABASE_URL: postgresql+asyncpg://finops:finops@localhost:5432/finops
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --frozen
+      - run: uv run ruff check . ../evals ../scripts
+      - run: uv run ruff format --check .
+      - run: uv run alembic upgrade head  # migrations apply from scratch
+      - run: uv run pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build  # includes type checking

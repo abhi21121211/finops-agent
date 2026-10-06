@@ -69,6 +69,19 @@ services:
     ports: ["3000:3000"]
     depends_on: [backend]
 
+  # Optional LLM router for people without a local LiteLLM proxy:
+  #   docker compose --profile router up -d
+  # then set LLM_ROUTER_URL=http://host.docker.internal:4001/v1 (or :4001 from the host)
+  # and put provider keys (GEMINI_API_KEY, ...) and LITELLM_MASTER_KEY in .env.
+  llm-router:
+    image: ghcr.io/berriai/litellm:main-stable
+    profiles: [router]
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    env_file: .env
+    ports: ["4001:4000"]
+    volumes:
+      - ./infra/litellm/config.yaml:/app/config.yaml:ro
+
 volumes:
   pgdata:
   objdata:
