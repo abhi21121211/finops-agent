@@ -1,0 +1,74 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-finops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-finops}
+      POSTGRES_DB: ${POSTGRES_DB:-finops}
+    ports: ["5433:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/db-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-finops}"]
+      interval: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      retries: 20
+
+  # S3-compatible object store (MinIO no longer publishes free images).
+  # Dev credentials live in infra/seaweedfs/s3.json.
+  objectstore:
+    image: chrislusf/seaweedfs:latest
+    command: server -dir=/data -ip.bind=0.0.0.0 -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json
+    ports: ["9100:8333"]
+    volumes:
+      - objdata:/data
+      - ./infra/seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9333/cluster/status >/dev/null"]
+      interval: 3s
+      retries: 30
+
+  backend:
+    build: ./backend
+    command: sh -c "alembic upgrade head && python -m app.seed && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    env_file: .env
+    environment: &container-env
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-finops}:${POSTGRES_PASSWORD:-finops}@postgres:5432/${POSTGRES_DB:-finops}
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT: http://objectstore:8333
+      LLM_ROUTER_URL: http://host.docker.internal:4000/v1
+    ports: ["8000:8000"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      objectstore: { condition: service_healthy }
+
+  worker:
+    build: ./backend
+    command: arq app.worker.WorkerSettings
+    env_file: .env
+    environment: *container-env
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    depends_on:
+      backend: { condition: service_started }
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+    ports: ["3000:3000"]
+    depends_on: [backend]
+
+volumes:
+  pgdata:
+  objdata:

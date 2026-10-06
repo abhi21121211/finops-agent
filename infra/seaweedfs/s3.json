@@ -1,0 +1,9 @@
+{
+  "identities": [
+    {
+      "name": "finops-dev",
+      "credentials": [{ "accessKey": "finops", "secretKey": "finops-secret" }],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}
