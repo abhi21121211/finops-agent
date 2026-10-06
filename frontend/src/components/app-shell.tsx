@@ -1,12 +1,13 @@
 "use client";
 
-import { FileText, LogOut } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { ClipboardCheck, FileText, LogOut } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useSyncExternalStore } from "react";
 
 import { Button } from "@/components/ui/button";
-import { hasToken, setToken } from "@/lib/api";
+import { api, hasToken, setToken } from "@/lib/api";
 
 function subscribeStorage(onChange: () => void) {
   window.addEventListener("storage", onChange);
@@ -36,14 +37,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             FinOps Agent
           </Link>
           <nav className="flex items-center gap-1 text-sm">
-            <Link
-              href="/invoices"
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 hover:bg-muted ${
-                pathname.startsWith("/invoices") ? "bg-muted font-medium" : "text-muted-foreground"
-              }`}
-            >
+            <NavLink href="/invoices" active={pathname.startsWith("/invoices")}>
               <FileText className="size-4" /> Invoices
-            </Link>
+            </NavLink>
+            <NavLink href="/review" active={pathname.startsWith("/review")}>
+              <ClipboardCheck className="size-4" /> Review
+              <ReviewCount />
+            </NavLink>
           </nav>
           <div className="ml-auto">
             <Button
@@ -61,5 +61,40 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </header>
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
     </div>
+  );
+}
+
+function NavLink({
+  href,
+  active,
+  children,
+}: {
+  href: string;
+  active: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 hover:bg-muted ${
+        active ? "bg-muted font-medium" : "text-muted-foreground"
+      }`}
+    >
+      {children}
+    </Link>
+  );
+}
+
+function ReviewCount() {
+  const { data } = useQuery({
+    queryKey: ["invoices", "needs_review", "count"],
+    queryFn: () => api.listInvoices({ status: "needs_review" }),
+    refetchInterval: 10_000,
+  });
+  if (!data?.total) return null;
+  return (
+    <span className="rounded-full bg-amber-500 px-1.5 text-xs font-medium tabular-nums text-white">
+      {data.total}
+    </span>
   );
 }

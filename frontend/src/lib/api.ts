@@ -21,6 +21,7 @@ export interface InvoiceSummary {
   invoice_date: string | null;
   total: string | null;
   min_confidence: number | null;
+  route_reasons: string[];
   created_at: string;
 }
 
@@ -59,6 +60,24 @@ export interface WorkflowEvent {
   detail: string;
 }
 
+export interface ValidationIssue {
+  check: string;
+  field: string | null;
+  severity: "error" | "warning";
+  message: string;
+  fixable: boolean;
+}
+
+export type ReviewAction = "approve" | "edit" | "reject";
+
+export interface Review {
+  action: ReviewAction;
+  field_edits: Record<string, unknown> | null;
+  comment: string | null;
+  user_email: string | null;
+  created_at: string;
+}
+
 export interface InvoiceDetail extends InvoiceSummary {
   extraction: Extraction | null;
   field_confidence: Record<string, number> | null;
@@ -71,7 +90,16 @@ export interface InvoiceDetail extends InvoiceSummary {
   list_price_usd: string;
   latency_ms: number | null;
   error_message: string | null;
+  extraction_attempts: number;
+  validation_issues: ValidationIssue[];
+  route: "auto_approve" | "human_review" | "vendor_query" | "reject" | null;
+  reviews: Review[];
 }
+
+export type StreamMessage =
+  | { type: "snapshot"; status: InvoiceStatus; events: WorkflowEvent[] }
+  | ({ type: "event" } & WorkflowEvent)
+  | { type: "status"; status: InvoiceStatus };
 
 export class ApiError extends Error {
   constructor(
@@ -131,12 +159,58 @@ export const api = {
     return request<{ items: InvoiceSummary[]; total: number }>(`/invoices?${q}`);
   },
   getInvoice: (id: string) => request<InvoiceDetail>(`/invoices/${id}`),
+  review: (
+    id: string,
+    body: { action: ReviewAction; field_edits?: Record<string, unknown>; comment?: string },
+  ) =>
+    request<InvoiceDetail>(`/invoices/${id}/review`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  reprocess: (id: string) =>
+    request<InvoiceDetail>(`/invoices/${id}/reprocess`, { method: "POST" }),
   uploadInvoice: (file: File) => {
     const form = new FormData();
     form.append("file", file);
     return request<InvoiceDetail>("/invoices", { method: "POST", body: form });
   },
 };
+
+/**
+ * Server-Sent Events over fetch, so the bearer token goes in a header (EventSource
+ * cannot set headers, and a token in the URL would end up in logs).
+ */
+export async function streamInvoiceEvents(
+  id: string,
+  onMessage: (m: StreamMessage) => void,
+  signal: AbortSignal,
+): Promise<void> {
+  const token = readToken();
+  const res = await fetch(`${API_URL}/invoices/${id}/events`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    signal,
+  });
+  if (!res.ok || !res.body) throw new ApiError(res.status, "event stream unavailable");
+  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) return;
+    buffer += value;
+    let sep: number;
+    while ((sep = buffer.indexOf("\n\n")) !== -1) {
+      const frame = buffer.slice(0, sep);
+      buffer = buffer.slice(sep + 2);
+      const data = frame
+        .split("\n")
+        .filter((l) => l.startsWith("data: "))
+        .map((l) => l.slice(6))
+        .join("\n");
+      if (data) onMessage(JSON.parse(data) as StreamMessage);
+    }
+  }
+}
 
 export const IN_FLIGHT: InvoiceStatus[] = ["received", "processing"];
 
