@@ -5,11 +5,11 @@ from langchain_core.runnables import RunnableConfig
 from app.agents.prompts import load_prompt
 from app.agents.state import InvoiceState, event
 from app.agents.tools.validation import TOLERANCE
+from app.core.config import get_settings
 from app.llm.router import LLMOutputError, LLMRouter, Tier, image_part, text_part
 from app.schemas.extraction import ExtractionOutput
 from app.storage import get_storage
 
-PROMPT = "extract_v3"
 MAX_TEXT_CHARS = 12_000
 
 
@@ -47,7 +47,7 @@ async def extract(state: InvoiceState, config: RunnableConfig) -> InvoiceState:
     try:
         result = await _router(config).structured(
             tier=Tier.vision,
-            system=load_prompt(PROMPT),
+            system=load_prompt(get_settings().extract_prompt),
             user_content=content,
             schema=ExtractionOutput,
         )

@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     llm_router_url: str = "http://localhost:4000/v1"
     llm_router_key: str = ""
     llm_timeout_s: float = 120.0
+    # Prompt version for extraction; a name in agents/prompts/ or a path to a .md file.
+    # Lets evals compare prompts without code changes.
+    extract_prompt: str = "extract_v3"
 
     jwt_secret: str = "dev-insecure-secret"
     jwt_algorithm: str = "HS256"

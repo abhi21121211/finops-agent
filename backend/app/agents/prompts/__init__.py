@@ -8,4 +8,6 @@ _DIR = Path(__file__).parent
 
 @cache
 def load_prompt(name: str) -> str:
-    return (_DIR / f"{name}.md").read_text(encoding="utf-8")
+    """By version name (`extract_v3`) or, for experiments, a path to a .md file."""
+    path = Path(name) if name.endswith(".md") else _DIR / f"{name}.md"
+    return path.read_text(encoding="utf-8")
