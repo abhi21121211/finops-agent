@@ -125,6 +125,10 @@ class Invoice(Base, Timestamped):
     list_price_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), default=Decimal("0"))
     latency_ms: Mapped[int | None] = mapped_column(Integer)
     error_message: Mapped[str | None] = mapped_column(Text)
+    extraction_attempts: Mapped[int] = mapped_column(Integer, default=0)
+    validation_issues: Mapped[list | None] = mapped_column(JSONType)
+    route: Mapped[str | None] = mapped_column(String(30))
+    route_reasons: Mapped[list | None] = mapped_column(JSONType)
     # Workflow timeline (WorkflowEvent dicts). The append-only audit_log arrives in M7.
     events: Mapped[list] = mapped_column(JSONType, default=list)
 
@@ -168,3 +172,24 @@ class InvoiceFile(Base, Timestamped):
     sha256: Mapped[str] = mapped_column(String(64), index=True)
 
     invoice: Mapped[Invoice] = relationship(back_populates="files")
+
+
+class ReviewAction(enum.StrEnum):
+    approve = "approve"
+    edit = "edit"
+    reject = "reject"
+
+
+class ReviewDecision(Base):
+    __tablename__ = "review_decisions"
+
+    id: Mapped[uuid.UUID] = _uuid()
+    tenant_id: Mapped[uuid.UUID] = _tenant_fk()
+    invoice_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("invoices.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    action: Mapped[ReviewAction] = mapped_column(_enum(ReviewAction, "review_action"))
+    field_edits: Mapped[dict | None] = mapped_column(JSONType)
+    comment: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

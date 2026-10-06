@@ -4,11 +4,12 @@ from langchain_core.runnables import RunnableConfig
 
 from app.agents.prompts import load_prompt
 from app.agents.state import InvoiceState, event
+from app.agents.tools.validation import TOLERANCE
 from app.llm.router import LLMOutputError, LLMRouter, Tier, image_part, text_part
 from app.schemas.extraction import ExtractionOutput
 from app.storage import get_storage
 
-PROMPT = "extract_v1"
+PROMPT = "extract_v2"
 MAX_TEXT_CHARS = 12_000
 
 
@@ -33,6 +34,16 @@ async def extract(state: InvoiceState, config: RunnableConfig) -> InvoiceState:
             )
         )
 
+    feedback = [i for i in state.get("validation_issues") or [] if i.get("fixable")]
+    if feedback and state.get("extraction"):
+        problems = "\n".join(f"- {i['field'] or i['check']}: {i['message']}" for i in feedback)
+        content.append(
+            text_part(
+                "A checker found these problems in your previous answer (tolerance "
+                f"₹{TOLERANCE}). Re-read the document for these fields:\n{problems}"
+            )
+        )
+
     try:
         result = await _router(config).structured(
             tier=Tier.vision,
@@ -41,6 +52,14 @@ async def extract(state: InvoiceState, config: RunnableConfig) -> InvoiceState:
             schema=ExtractionOutput,
         )
     except LLMOutputError as e:
+        if state.get("extraction"):
+            # A retry failed: keep the earlier extraction and mark it final so validation
+            # routes it instead of retrying again.
+            return {
+                "extraction_attempts": attempts,
+                "previous_extraction": state["extraction"],
+                "events": [event("extract", "info", "retry produced invalid output; kept earlier")],
+            }
         return {
             "extraction_attempts": attempts,
             "error": str(e),
@@ -56,7 +75,10 @@ async def extract(state: InvoiceState, config: RunnableConfig) -> InvoiceState:
     detail = f"{len(out.invoice.line_items)} line item(s) via {result.model}"
     if low:
         detail += f"; low confidence: {', '.join(low)}"
+    if attempts > 1:
+        detail = f"attempt {attempts}: {detail}"
     return {
+        "previous_extraction": state.get("extraction"),
         "extraction": out.invoice.model_dump(mode="json"),
         "field_confidence": out.confidence,
         "extraction_attempts": attempts,

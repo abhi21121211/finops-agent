@@ -9,6 +9,7 @@ os.environ["DATABASE_URL"] = _BASE.rsplit("/", 1)[0] + "/finops_test"
 
 import io  # noqa: E402
 import json  # noqa: E402
+from decimal import Decimal  # noqa: E402
 from types import SimpleNamespace  # noqa: E402
 
 import asyncpg  # noqa: E402
@@ -16,9 +17,12 @@ import pytest  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
 from reportlab.pdfgen import canvas  # noqa: E402
 
+from app.agents.lookups import TenantSettings  # noqa: E402
 from app.core.auth import create_token  # noqa: E402
 from app.db.models import Base  # noqa: E402
 from app.db.session import engine  # noqa: E402
+from app.demo_data import BUYER_GSTIN, KAVERI  # noqa: E402
+from app.schemas.extraction import CONFIDENCE_FIELDS  # noqa: E402
 
 
 class MemoryStorage:
@@ -41,9 +45,30 @@ class MemoryStorage:
 class FakeQueue:
     def __init__(self) -> None:
         self.enqueued: list[str] = []
+        self.reprocessed: list[str] = []
+        self.resumed: list[tuple[str, dict]] = []
 
-    async def enqueue_invoice(self, invoice_id: str) -> None:
-        self.enqueued.append(invoice_id)
+    async def enqueue_invoice(self, invoice_id: str, *, reprocess: bool = False) -> None:
+        (self.reprocessed if reprocess else self.enqueued).append(invoice_id)
+
+    async def enqueue_resume(self, invoice_id: str, decision: dict) -> None:
+        self.resumed.append((invoice_id, decision))
+
+
+class FakeLookups:
+    def __init__(self, known=(KAVERI.gstin,), others=(), threshold=0.85, limit="50000"):
+        self.known = set(known)
+        self.others = list(others)
+        self.settings = TenantSettings(threshold, Decimal(limit))
+
+    async def known_vendor_gstins(self, tenant_id: str) -> set[str]:
+        return self.known
+
+    async def other_invoices(self, tenant_id: str, exclude_id: str):
+        return [o for o in self.others if o.invoice_id != exclude_id]
+
+    async def tenant_settings(self, tenant_id: str) -> TenantSettings:
+        return self.settings
 
 
 class FakeRaw:
@@ -78,12 +103,13 @@ class FakeOpenAI:
         return FakeRaw(self.replies.pop(0), self.model)
 
 
-def sample_extraction(**overrides) -> dict:
+def sample_extraction(confidence: float = 0.99, **overrides) -> dict:
+    """A valid, internally consistent invoice from a known demo vendor."""
     invoice = {
-        "vendor_name": "Test Vendor LLP",
-        "vendor_gstin": "27ABCCD1234E1Z5",
-        "buyer_gstin": None,
-        "invoice_number": "TV/26-27/001",
+        "vendor_name": KAVERI.name,
+        "vendor_gstin": KAVERI.gstin,
+        "buyer_gstin": BUYER_GSTIN,
+        "invoice_number": "KAV/26-27/001",
         "invoice_date": "2026-09-15",
         "due_date": "2026-10-15",
         "po_number": "PO-1",
@@ -103,11 +129,11 @@ def sample_extraction(**overrides) -> dict:
         "sgst": 90,
         "igst": 0,
         "total": 1180,
-        "bank_account_last4": "1234",
-        "bank_ifsc": "HDFC0001234",
+        "bank_account_last4": KAVERI.bank_last4,
+        "bank_ifsc": KAVERI.bank_ifsc,
     }
     invoice.update(overrides)
-    return {"invoice": invoice, "confidence": {"vendor_name": 0.99, "total": 0.97}}
+    return {"invoice": invoice, "confidence": dict.fromkeys(CONFIDENCE_FIELDS, confidence)}
 
 
 def make_pdf(text: str = "TAX INVOICE") -> bytes:

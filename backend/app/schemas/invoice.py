@@ -3,9 +3,9 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from app.db.models import InvoiceSource, InvoiceStatus
+from app.db.models import InvoiceSource, InvoiceStatus, ReviewAction
 
 
 class InvoiceSummary(BaseModel):
@@ -43,3 +43,22 @@ class InvoiceDetail(InvoiceSummary):
     list_price_usd: Decimal
     latency_ms: int | None
     error_message: str | None
+    extraction_attempts: int
+    validation_issues: list[dict[str, Any]]
+    route: str | None
+    route_reasons: list[str]
+    reviews: list["ReviewOut"]
+
+
+class ReviewIn(BaseModel):
+    action: ReviewAction
+    field_edits: dict[str, Any] = Field(default_factory=dict)
+    comment: str | None = Field(default=None, max_length=2000)
+
+
+class ReviewOut(BaseModel):
+    action: ReviewAction
+    field_edits: dict[str, Any] | None
+    comment: str | None
+    user_email: str | None
+    created_at: datetime

@@ -29,7 +29,7 @@ async def test_valid_reply_parsed_and_recorded():
 async def test_fenced_json_is_accepted():
     fake = FakeOpenAI("Here you go:\n```json\n" + as_json(sample_extraction()) + "\n```")
     result = await _call(fake)
-    assert result.output.invoice.invoice_number == "TV/26-27/001"
+    assert result.output.invoice.invoice_number == "KAV/26-27/001"
 
 
 async def test_invalid_reply_gets_one_correction_round():

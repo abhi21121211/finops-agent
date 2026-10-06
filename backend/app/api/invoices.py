@@ -1,20 +1,43 @@
+import asyncio
 import hashlib
+import json
 import uuid
+from collections.abc import AsyncIterator
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
+from fastapi.responses import StreamingResponse
+from pydantic import ValidationError
+from redis.asyncio import Redis
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.agents.nodes.human_review import apply_field_edits
 from app.agents.tools.documents import SUPPORTED_TYPES, sniff_content_type
 from app.core.auth import CurrentUserDep
 from app.core.config import get_settings
+from app.core.events import channel
 from app.core.queue import Queue, get_queue
-from app.db.models import Invoice, InvoiceFile, InvoiceSource, InvoiceStatus
+from app.db.models import (
+    Invoice,
+    InvoiceFile,
+    InvoiceSource,
+    InvoiceStatus,
+    ReviewAction,
+    ReviewDecision,
+    User,
+)
 from app.db.session import get_session
-from app.schemas.invoice import InvoiceDetail, InvoiceList, InvoiceSummary, PageOut
+from app.schemas.invoice import (
+    InvoiceDetail,
+    InvoiceList,
+    InvoiceSummary,
+    PageOut,
+    ReviewIn,
+    ReviewOut,
+)
 from app.storage import Storage, get_storage, tenant_key
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
@@ -24,6 +47,18 @@ StorageDep = Annotated[Storage, Depends(get_storage)]
 QueueDep = Annotated[Queue, Depends(get_queue)]
 
 _EXT = {"application/pdf": "pdf", "image/png": "png", "image/jpeg": "jpg"}
+_FINAL = {InvoiceStatus.approved, InvoiceStatus.rejected, InvoiceStatus.failed}
+_redis: Redis | None = None
+
+
+def get_redis() -> Redis:
+    global _redis
+    if _redis is None:
+        _redis = Redis.from_url(get_settings().redis_url)
+    return _redis
+
+
+RedisDep = Annotated[Redis, Depends(get_redis)]
 
 
 def _summary(inv: Invoice) -> InvoiceSummary:
@@ -43,7 +78,13 @@ def _summary(inv: Invoice) -> InvoiceSummary:
     )
 
 
-def _detail(inv: Invoice, storage: Storage) -> InvoiceDetail:
+async def _detail(session: AsyncSession, inv: Invoice, storage: Storage) -> InvoiceDetail:
+    reviews = await session.execute(
+        select(ReviewDecision, User.email)
+        .join(User, User.id == ReviewDecision.user_id, isouter=True)
+        .where(ReviewDecision.invoice_id == inv.id)
+        .order_by(ReviewDecision.created_at)
+    )
     original = next((f for f in inv.files if f.page_no == 0), None)
     pages = [
         PageOut(page_no=f.page_no, url=storage.presigned_url(f.s3_key))
@@ -63,6 +104,20 @@ def _detail(inv: Invoice, storage: Storage) -> InvoiceDetail:
         list_price_usd=inv.list_price_usd,
         latency_ms=inv.latency_ms,
         error_message=inv.error_message,
+        extraction_attempts=inv.extraction_attempts,
+        validation_issues=inv.validation_issues or [],
+        route=inv.route,
+        route_reasons=inv.route_reasons or [],
+        reviews=[
+            ReviewOut(
+                action=r.action,
+                field_edits=r.field_edits,
+                comment=r.comment,
+                user_email=email,
+                created_at=r.created_at,
+            )
+            for r, email in reviews
+        ],
     )
 
 
@@ -106,7 +161,7 @@ async def upload_invoice(
     await session.commit()
 
     await queue.enqueue_invoice(str(invoice_id))
-    return _detail(await _load(session, user.tenant_id, invoice_id), storage)
+    return await _detail(session, await _load(session, user.tenant_id, invoice_id), storage)
 
 
 @router.get("", response_model=InvoiceList)
@@ -135,13 +190,16 @@ async def list_invoices(
     return InvoiceList(items=[_summary(i) for i in rows], total=count or 0)
 
 
-async def _load(session: AsyncSession, tenant_id: uuid.UUID, invoice_id: uuid.UUID) -> Invoice:
-    inv = await session.scalar(
+async def _load(
+    session: AsyncSession, tenant_id: uuid.UUID, invoice_id: uuid.UUID, *, lock: bool = False
+) -> Invoice:
+    q = (
         select(Invoice)
         .where(Invoice.id == invoice_id, Invoice.tenant_id == tenant_id)
         .options(selectinload(Invoice.files))
         .execution_options(populate_existing=True)
     )
+    inv = await session.scalar(q.with_for_update(of=Invoice) if lock else q)
     if inv is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Invoice not found")
     return inv
@@ -151,4 +209,126 @@ async def _load(session: AsyncSession, tenant_id: uuid.UUID, invoice_id: uuid.UU
 async def get_invoice(
     invoice_id: uuid.UUID, user: CurrentUserDep, session: SessionDep, storage: StorageDep
 ) -> InvoiceDetail:
-    return _detail(await _load(session, user.tenant_id, invoice_id), storage)
+    return await _detail(session, await _load(session, user.tenant_id, invoice_id), storage)
+
+
+@router.post("/{invoice_id}/review", response_model=InvoiceDetail)
+async def review_invoice(
+    invoice_id: uuid.UUID,
+    body: ReviewIn,
+    user: CurrentUserDep,
+    session: SessionDep,
+    storage: StorageDep,
+    queue: QueueDep,
+) -> InvoiceDetail:
+    """Approve, edit (then approve) or reject a paused invoice; resumes its workflow."""
+    # Row lock: two reviewers clicking at once cannot both resume the run.
+    inv = await _load(session, user.tenant_id, invoice_id, lock=True)
+    if inv.status != InvoiceStatus.needs_review:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Invoice is {inv.status.value}")
+    if body.action == ReviewAction.edit:
+        if not body.field_edits:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "edit needs field_edits")
+        try:
+            apply_field_edits(inv.extraction or {}, body.field_edits)
+        except (ValueError, ValidationError) as e:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)[:1000]) from e
+    elif body.field_edits:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "field_edits only apply to action=edit"
+        )
+
+    session.add(
+        ReviewDecision(
+            tenant_id=user.tenant_id,
+            invoice_id=inv.id,
+            user_id=user.user_id,
+            action=body.action,
+            field_edits=body.field_edits or None,
+            comment=body.comment,
+        )
+    )
+    inv.status = InvoiceStatus.processing
+    await session.commit()
+
+    await queue.enqueue_resume(
+        str(inv.id),
+        {
+            "action": body.action.value,
+            "field_edits": body.field_edits,
+            "comment": body.comment,
+            "user_id": str(user.user_id),
+            "user_email": user.email,
+        },
+    )
+    return await _detail(session, await _load(session, user.tenant_id, invoice_id), storage)
+
+
+@router.post("/{invoice_id}/reprocess", response_model=InvoiceDetail)
+async def reprocess_invoice(
+    invoice_id: uuid.UUID,
+    user: CurrentUserDep,
+    session: SessionDep,
+    storage: StorageDep,
+    queue: QueueDep,
+) -> InvoiceDetail:
+    """Run the workflow again from the start (fresh extraction)."""
+    inv = await _load(session, user.tenant_id, invoice_id, lock=True)
+    if inv.status in (InvoiceStatus.received, InvoiceStatus.processing):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Invoice is already being processed")
+    inv.status = InvoiceStatus.received
+    await session.commit()
+    await queue.enqueue_invoice(str(inv.id), reprocess=True)
+    return await _detail(session, await _load(session, user.tenant_id, invoice_id), storage)
+
+
+def _sse(payload: dict) -> str:
+    return f"data: {json.dumps(payload, default=str)}\n\n"
+
+
+@router.get("/{invoice_id}/events")
+async def invoice_events(
+    invoice_id: uuid.UUID,
+    request: Request,
+    user: CurrentUserDep,
+    session: SessionDep,
+    redis: RedisDep,
+) -> StreamingResponse:
+    """Server-Sent Events: workflow events and status changes as they happen.
+
+    Subscribes before reading the snapshot, so nothing published in between is lost
+    (the client may see an event twice and should de-duplicate by timestamp)."""
+    pubsub = redis.pubsub()
+    await pubsub.subscribe(channel(str(invoice_id)))
+    try:
+        inv = await _load(session, user.tenant_id, invoice_id)
+    except HTTPException:
+        await pubsub.aclose()
+        raise
+    snapshot = {"type": "snapshot", "status": inv.status.value, "events": inv.events or []}
+    await session.close()  # don't hold a DB connection for the life of the stream
+
+    async def stream() -> AsyncIterator[str]:
+        try:
+            yield _sse(snapshot)
+            idle = 0.0
+            while not await request.is_disconnected():
+                msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                if msg is None:
+                    idle += 1.0
+                    if idle >= 15:
+                        yield ": keep-alive\n\n"
+                        idle = 0.0
+                    continue
+                idle = 0.0
+                yield f"data: {msg['data'].decode()}\n\n"
+        except asyncio.CancelledError:
+            pass
+        finally:
+            await pubsub.aclose()
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

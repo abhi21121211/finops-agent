@@ -29,13 +29,17 @@ class InvoiceState(TypedDict, total=False):
     pdf_text: str
 
     extraction: dict[str, Any] | None  # ExtractedInvoice as JSON
+    previous_extraction: dict[str, Any] | None  # from the attempt before, to spot no-change
+    retry_extraction: bool
     field_confidence: dict[str, float]
     validation_issues: list[dict[str, Any]]
     extraction_attempts: int
     match_result: dict[str, Any] | None
     anomalies: list[dict[str, Any]]
     route: Literal["auto_approve", "human_review", "vendor_query", "reject"] | None
+    route_reasons: list[str]
     human_decision: dict[str, Any] | None
+    outcome: Literal["approved", "rejected"] | None
 
     model_used: str
     cost_usd: Annotated[float, operator.add]
