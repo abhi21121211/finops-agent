@@ -38,7 +38,7 @@ services:
 
   backend:
     build: ./backend
-    command: sh -c "alembic upgrade head && python -m app.seed && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    command: sh -c "alembic upgrade head && python -m app.seed && uvicorn app.main:app --host 0.0.0.0 --port 8000 --timeout-graceful-shutdown 5"
     env_file: .env
     environment: &container-env
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-finops}:${POSTGRES_PASSWORD:-finops}@postgres:5432/${POSTGRES_DB:-finops}

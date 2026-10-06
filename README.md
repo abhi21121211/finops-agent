@@ -4,29 +4,45 @@ An autonomous accounts-payable agent for Indian small businesses and CA firms: i
 vendor invoices, extracts and validates them, reconciles them against purchase orders and
 bank statements, and asks a human only when it is unsure.
 
-> Status: **M1, Skeleton and extraction.** Upload an invoice (PDF, PNG, JPG) and see every
-> field extracted with a per-field confidence score. See the
-> [project spec](docs/FinOps_Agent_Project_Spec.md) for the roadmap.
+> Status: **M2, Validation and human review.** Upload an invoice; the agent extracts it,
+> checks it with deterministic rules, re-reads the document when a check suggests a misread,
+> and either auto-approves it or pauses for a human. Paused invoices survive restarts.
+> See the [project spec](docs/FinOps_Agent_Project_Spec.md) for the roadmap.
 
-## Architecture (M1)
+## Architecture
 
 ```
-Next.js ──REST──▶ FastAPI ──enqueue──▶ Redis/arq ──▶ worker
-                     │                                 │  LangGraph: intake → extract
-                     ▼                                 ▼
-                 Postgres  ◀───── results ─────── S3-compatible storage
-                                                       │
-                                     LLMRouter ──▶ LiteLLM proxy ──▶ free providers
-                                                   (Gemini, Mistral, OpenRouter, Groq)
+Next.js ──REST/SSE──▶ FastAPI ──enqueue──▶ Redis/arq ──▶ worker ──publish──▶ Redis pub/sub
+                         │                                │                     │
+                         ▼                                ▼                     ▼
+                     Postgres ◀── checkpoints + results ── LangGraph       SSE to browser
+                                                          │
+                                        LLMRouter ──▶ LiteLLM proxy ──▶ free providers
+
+LangGraph, one thread per invoice (checkpointed in Postgres):
+
+  intake → extract → validate ⇄ extract   (fixable issue, < 3 attempts, re-read changed something)
+                            → route → post                  (auto_approve)
+                                    → human_review → post   (interrupt; approve / edit / reject)
 ```
 
+- **Validation is plain code** (`backend/app/agents/tools/validation.py`): GSTIN pattern and
+  mod-36 check character, line maths, subtotal + tax = total, tax vs line GST rates
+  (₹1 tolerance), CGST+SGST vs IGST and place of supply, dates, duplicates, vendor master.
+- **Self-correction:** issues a misread could explain go back to `extract` as feedback. If the
+  re-read returns identical values, the document really says that, so it stops early.
+- **Routing is plain code** (`nodes/route.py`): any unresolved validation error, low field
+  confidence (tenant threshold, default 85%), missing GSTIN or a total above the tenant's
+  auto-approve limit (default ₹50,000) sends the invoice to a human. Every reason is shown.
+- **Human review** is a LangGraph `interrupt()`. `POST /invoices/{id}/review` records the
+  decision and enqueues a resume; the run continues from its Postgres checkpoint, on any
+  worker, after any restart. Edits are re-validated and stored.
+- **Live timeline:** the worker publishes each step to Redis; `GET /invoices/{id}/events`
+  streams it as Server-Sent Events.
 - **Every LLM call** goes through `backend/app/llm/router.py`, which records the model that
   actually answered, tokens, latency, real cost (free tier: $0) and list-price-equivalent cost.
-- **Extraction** sends page images *and* the PDF text layer to a `vision` tier, asks for
-  JSON, validates it with Pydantic and gives the model one correction round if it fails.
-- **Transient provider failures** (429/5xx) are retried by the worker with backoff; the
-  invoice is only marked `failed` after four tries.
-- **Prompts** live in `backend/app/agents/prompts/` as versioned files.
+- **Transient provider failures** (429/5xx) are retried with backoff, resuming from the
+  last checkpoint rather than starting over.
 
 ## Running locally
 
@@ -49,16 +65,25 @@ make worker-dev     # job worker
 make frontend-dev   # Next.js on :3000
 ```
 
-Synthetic sample invoices (fictional companies and GSTINs, with ground-truth JSON):
+Synthetic sample invoices (fictional companies and GSTINs that match the seeded vendor
+master, with ground-truth JSON and the expected route):
 
 ```bash
 make samples        # writes samples/*.pdf|png + *.expected.json
 ```
 
+| Sample | Expected | Why |
+|---|---|---|
+| 01 intrastate | auto-approve | clean, known vendor, under limit |
+| 02 interstate | review | total above ₹50,000 |
+| 03 scanned | auto-approve | tilted, blurred scan of a clean invoice |
+| 04 bad tax | review | vendor misprinted CGST; maths doesn't add up |
+| 05 unknown vendor | review | GSTIN not in the vendor master |
+
 ## Tests
 
 ```bash
-make test   # pytest: schema, router, document rendering, upload→worker→API flow
+make test   # pytest: validators, graph routing, restart durability, review API, ...
 make lint
 ```
 

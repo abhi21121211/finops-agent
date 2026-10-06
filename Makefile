@@ -25,7 +25,7 @@ samples:       ## Generate synthetic sample invoices into samples/
 	cd backend && uv run python ../scripts/make_sample_invoices.py
 
 backend-dev:
-	cd backend && uv run alembic upgrade head && uv run python -m app.seed && uv run uvicorn app.main:app --reload --port 8000
+	cd backend && uv run alembic upgrade head && uv run python -m app.seed && uv run uvicorn app.main:app --reload --port 8000 --timeout-graceful-shutdown 5
 
 worker-dev:
 	cd backend && uv run arq app.worker.WorkerSettings
