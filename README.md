@@ -4,9 +4,10 @@ An autonomous accounts-payable agent for Indian small businesses and CA firms: i
 vendor invoices, extracts and validates them, reconciles them against purchase orders and
 bank statements, and asks a human only when it is unsure.
 
-> Status: **M2, Validation and human review.** Upload an invoice; the agent extracts it,
-> checks it with deterministic rules, re-reads the document when a check suggests a misread,
-> and either auto-approves it or pauses for a human. Paused invoices survive restarts.
+> Status: **M3, Three-way reconciliation.** Upload an invoice; the agent extracts it,
+> checks it with deterministic rules, matches it to its purchase order and to bank payments
+> (part-payments, combined transfers, TDS), and either auto-approves it or pauses for a
+> human. Paused invoices survive restarts.
 > See the [project spec](docs/FinOps_Agent_Project_Spec.md) for the roadmap.
 
 ## Architecture
@@ -22,8 +23,8 @@ Next.js ──REST/SSE──▶ FastAPI ──enqueue──▶ Redis/arq ──�
 LangGraph, one thread per invoice (checkpointed in Postgres):
 
   intake → extract → validate ⇄ extract   (fixable issue, < 3 attempts, re-read changed something)
-                            → route → post                  (auto_approve)
-                                    → human_review → post   (interrupt; approve / edit / reject)
+                            → reconcile → route → post                (auto_approve)
+                                                → human_review → post (interrupt; approve / edit / reject)
 ```
 
 - **Validation is plain code** (`backend/app/agents/tools/validation.py`): GSTIN pattern and
@@ -34,6 +35,13 @@ LangGraph, one thread per invoice (checkpointed in Postgres):
 - **Routing is plain code** (`nodes/route.py`): any unresolved validation error, low field
   confidence (tenant threshold, default 85%), missing GSTIN or a total above the tenant's
   auto-approve limit (default ₹50,000) sends the invoice to a human. Every reason is shown.
+- **Reconciliation** (`backend/app/reconcile/`, plain code): the PO is found by number, or by
+  vendor and amount. Lines are matched by description, quantity (against what is *left* on
+  the PO, which catches over-billing across invoices) and price (2% tolerance). An LLM is
+  asked only whether two differently worded lines are the same item. Bank payments are
+  allocated tenant-wide from CSV statements: invoice references, exact amounts, TDS
+  deductions (0.1–10% of taxable value), combined transfers and part-payments. Amount alone
+  never counts as a match. Only PO problems block approval ([ADR 0002](docs/decisions/0002-reconciliation-routing.md)).
 - **Human review** is a LangGraph `interrupt()`. `POST /invoices/{id}/review` records the
   decision and enqueues a resume; the run continues from its Postgres checkpoint, on any
   worker, after any restart. Edits are re-validated and stored.
@@ -72,13 +80,17 @@ master, with ground-truth JSON and the expected route):
 make samples        # writes samples/*.pdf|png + *.expected.json
 ```
 
-| Sample | Expected | Why |
+| Sample | Route | Reconciliation (after the bank statement) |
 |---|---|---|
-| 01 intrastate | auto-approve | clean, known vendor, under limit |
-| 02 interstate | review | total above ₹50,000 |
-| 03 scanned | auto-approve | tilted, blurred scan of a clean invoice |
-| 04 bad tax | review | vendor misprinted CGST; maths doesn't add up |
-| 05 unknown vendor | review | GSTIN not in the vendor master |
+| 01 intrastate | auto-approve | matched: PO-2026-0412; paid in a combined transfer with 04 |
+| 02 interstate | review (over ₹50,000, no PO) | no_po; paid in two parts, ₹880 shortfall = 2% TDS |
+| 03 scanned | auto-approve | matched: 500 of 1000 boxes on PO-2026-0398; paid net of 2% TDS |
+| 04 bad tax | review (misprinted CGST) | matched: PO-2026-0431; combined transfer with 01 |
+| 05 unknown vendor | review (not in vendor master) | no_po; unpaid |
+| 06 PO price | review | mismatch: toner billed 13.9% above PO-2026-0450 |
+
+`samples/bank-statement-sep-2026.csv` (HDFC layout) pays them, plus rent, salary and an
+incoming receipt that must be ignored. Upload it on the Reconciliation page.
 
 ## Tests
 
@@ -110,3 +122,4 @@ docs/           spec, architecture decision records
 ## Decisions
 
 - [ADR 0001: Free-tier stack](docs/decisions/0001-free-tier-stack.md)
+- [ADR 0002: What reconciliation blocks, and how payments are matched](docs/decisions/0002-reconciliation-routing.md)

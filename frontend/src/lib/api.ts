@@ -78,6 +78,87 @@ export interface Review {
   created_at: string;
 }
 
+export type MatchStatus = "matched" | "partial" | "mismatch" | "no_po" | "unpaid";
+
+export interface LineMatch {
+  invoice_line: number;
+  po_line: number | null;
+  invoice_description: string;
+  po_description: string | null;
+  similarity: number;
+  matched_by: "text" | "llm" | "none";
+  quantity: string;
+  quantity_available: string | null;
+  unit_price: string;
+  po_unit_price: string | null;
+  price_diff_pct: number | null;
+  status: "ok" | "price" | "quantity" | "unmatched";
+  note: string;
+}
+
+export interface Allocation {
+  transaction_id: string;
+  amount: string;
+  date: string;
+  narration: string;
+  kind: "reference" | "exact" | "combined";
+}
+
+export interface MatchResult {
+  status: MatchStatus;
+  explanation: string;
+  po: {
+    status: "matched" | "mismatch" | "no_po";
+    po_id: string | null;
+    po_number: string | null;
+    found_by: "po_number" | "vendor_amount" | "none";
+    lines: LineMatch[];
+    explanation: string;
+  };
+  payment: {
+    status: "paid" | "partial" | "unpaid";
+    paid: string;
+    tds_rate: string | null;
+    tds_amount: string;
+    outstanding: string;
+    allocations: Allocation[];
+    explanation: string;
+  };
+}
+
+export interface ReconciliationRow {
+  invoice_id: string;
+  invoice_status: InvoiceStatus;
+  vendor_name: string | null;
+  invoice_number: string | null;
+  invoice_date: string | null;
+  total: string | null;
+  status: MatchStatus;
+  po_number: string | null;
+  paid: string;
+  outstanding: string;
+  tds_amount: string;
+  explanation: string;
+}
+
+export interface PurchaseOrder {
+  id: string;
+  po_number: string;
+  date: string;
+  status: string;
+  total: string;
+  vendor_id: string;
+  vendor_name: string;
+  lines: { description: string; quantity: string; unit_price: string; billed: string }[];
+}
+
+export interface StatementUpload {
+  rows: number;
+  inserted: number;
+  duplicates: number;
+  money_out: number;
+}
+
 export interface InvoiceDetail extends InvoiceSummary {
   extraction: Extraction | null;
   field_confidence: Record<string, number> | null;
@@ -93,6 +174,7 @@ export interface InvoiceDetail extends InvoiceSummary {
   extraction_attempts: number;
   validation_issues: ValidationIssue[];
   route: "auto_approve" | "human_review" | "vendor_query" | "reject" | null;
+  match: MatchResult | null;
   reviews: Review[];
 }
 
@@ -170,6 +252,13 @@ export const api = {
     }),
   reprocess: (id: string) =>
     request<InvoiceDetail>(`/invoices/${id}/reprocess`, { method: "POST" }),
+  reconciliation: () => request<ReconciliationRow[]>("/reconciliation"),
+  purchaseOrders: () => request<PurchaseOrder[]>("/purchase-orders"),
+  uploadStatement: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<StatementUpload>("/bank-statements", { method: "POST", body: form });
+  },
   uploadInvoice: (file: File) => {
     const form = new FormData();
     form.append("file", file);

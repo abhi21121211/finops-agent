@@ -19,6 +19,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
+import { MatchBadge, ReconciliationPanel } from "@/components/reconciliation-panel";
 import { ConfidencePill, StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -149,6 +150,17 @@ export default function InvoiceDetailPage() {
             />
           )}
           <ValidationCard inv={inv} />
+          {inv.match && (
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-base">Reconciliation</CardTitle>
+                <MatchBadge status={inv.match.status} />
+              </CardHeader>
+              <CardContent>
+                <ReconciliationPanel match={inv.match} total={inv.total} />
+              </CardContent>
+            </Card>
+          )}
           <FieldsCard inv={inv} edits={edits} setEdits={setEdits} />
           <LineItemsCard inv={inv} />
           <TimelineCard inv={inv} />
