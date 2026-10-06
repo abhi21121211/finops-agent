@@ -252,7 +252,12 @@ async def resume_invoice(
         run = Run(ctx, session, inv, config)
         snapshot = await run.graph.aget_state(config)
         if "human_review" not in snapshot.next:
+            # No paused run to continue (e.g. the checkpoint was lost or the invoice predates
+            # checkpointing). Never leave it stuck in "processing".
             log.warning("resume_without_pause", invoice_id=invoice_id, next=snapshot.next)
+            inv.error_message = "No paused workflow found for this invoice. Reprocess it."
+            await run.add_events([event("workflow", "failed", inv.error_message)])
+            await run.set_status(InvoiceStatus.failed)
             return
         await run.set_status(InvoiceStatus.processing)
         await run.execute(Command(resume=decision))

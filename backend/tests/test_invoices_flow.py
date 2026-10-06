@@ -8,6 +8,8 @@ import pytest
 from app.agents.checkpointer import postgres_checkpointer
 from app.agents.graph import build_graph
 from app.core.auth import create_token
+from app.db.models import Invoice, InvoiceStatus
+from app.db.session import SessionLocal
 from app.llm.router import LLMRouter
 from app.worker import process_invoice, resume_invoice
 from tests.conftest import FakeOpenAI, as_json, make_pdf, sample_extraction
@@ -178,3 +180,43 @@ async def test_other_tenant_cannot_read_or_review_invoice(client, auth_headers):
     )
     assert review.status_code == 404
     assert (await client.get("/api/v1/invoices", headers=headers)).json()["total"] == 0
+
+
+async def test_resume_without_paused_run_fails_cleanly(client, auth_headers, worker_storage):
+    inv_id = (await _upload(client, auth_headers)).json()["id"]  # never processed
+    await _resume(inv_id, {"action": "approve"})
+    detail = await _get(client, auth_headers, inv_id)
+    assert detail["status"] == "failed"
+    assert "Reprocess" in detail["error_message"]
+
+
+async def test_edit_revalidates_corrected_values(client, auth_headers, queue, worker_storage):
+    inv_id = (await _upload(client, auth_headers)).json()["id"]
+    wrong = as_json(sample_extraction(invoice_number="FIX-1", cgst=240, total=1330))
+    await _process(inv_id, wrong, wrong)  # document really wrong → review
+    assert (await _get(client, auth_headers, inv_id))["validation_issues"]
+
+    decision = {"action": "edit", "field_edits": {"cgst": "90", "total": "1180"}}
+    await _resume(inv_id, decision)
+    detail = await _get(client, auth_headers, inv_id)
+    assert detail["status"] == "approved"
+    assert detail["validation_issues"] == []
+
+
+async def test_invoice_mid_reprocess_does_not_break_duplicate_check(
+    client, auth_headers, queue, worker_storage
+):
+    """Regression: reprocess clears extraction while the invoice is still 'processing'.
+    It used to be stored as JSON `null`, which `IS NOT NULL` matched, crashing the
+    duplicate lookup for every invoice validated at the same time."""
+    first = (await _upload(client, auth_headers)).json()["id"]
+    await _process(first, as_json(sample_extraction(invoice_number="RP-1")))
+    async with SessionLocal() as s:  # the state a concurrent reprocess leaves behind
+        inv = await s.get(Invoice, uuid.UUID(first))
+        inv.extraction = None
+        inv.status = InvoiceStatus.processing
+        await s.commit()
+
+    second = (await _upload(client, auth_headers)).json()["id"]
+    await _process(second, as_json(sample_extraction(invoice_number="RP-2")))
+    assert (await _get(client, auth_headers, second))["status"] == "approved"

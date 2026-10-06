@@ -47,7 +47,7 @@ async def route(state: InvoiceState, config: RunnableConfig) -> InvoiceState:
 
     if inv.total > settings.auto_approve_limit:
         limit = Decimal(settings.auto_approve_limit)
-        reasons.append(f"total ₹{inv.total:,} above auto-approve limit ₹{limit:,}")
+        reasons.append(f"total ₹{inv.total:,.2f} above auto-approve limit ₹{limit:,.2f}")
 
     decision = "human_review" if reasons else "auto_approve"
     detail = "all rules passed" if not reasons else "; ".join(reasons)

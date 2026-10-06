@@ -18,6 +18,7 @@ class InvoiceSummary(BaseModel):
     invoice_date: date | None
     total: Decimal | None
     min_confidence: float | None
+    route_reasons: list[str]
     created_at: datetime
 
 
@@ -46,7 +47,6 @@ class InvoiceDetail(InvoiceSummary):
     extraction_attempts: int
     validation_issues: list[dict[str, Any]]
     route: str | None
-    route_reasons: list[str]
     reviews: list["ReviewOut"]
 
 

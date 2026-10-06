@@ -74,6 +74,7 @@ def _summary(inv: Invoice) -> InvoiceSummary:
         invoice_date=inv.invoice_date,
         total=inv.total,
         min_confidence=min(conf.values()) if conf else None,
+        route_reasons=inv.route_reasons or [],
         created_at=inv.created_at,
     )
 
@@ -107,7 +108,6 @@ async def _detail(session: AsyncSession, inv: Invoice, storage: Storage) -> Invo
         extraction_attempts=inv.extraction_attempts,
         validation_issues=inv.validation_issues or [],
         route=inv.route,
-        route_reasons=inv.route_reasons or [],
         reviews=[
             ReviewOut(
                 action=r.action,

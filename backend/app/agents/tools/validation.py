@@ -50,8 +50,8 @@ def check_tax_maths(inv: ExtractedInvoice) -> list[ValidationIssue]:
                 _issue(
                     "tax_maths",
                     f"line_items[{i}].amount",
-                    f"Line {i + 1}: {li.quantity} × {li.unit_price} = {expected:.2f}, "
-                    f"but amount is {li.amount}",
+                    f"Line {i + 1}: {li.quantity} × {li.unit_price:.2f} = {expected:.2f}, "
+                    f"but amount is {li.amount:.2f}",
                     fixable=True,
                 )
             )
@@ -62,7 +62,7 @@ def check_tax_maths(inv: ExtractedInvoice) -> list[ValidationIssue]:
             _issue(
                 "tax_maths",
                 "subtotal",
-                f"Line amounts sum to {lines_sum:.2f}, but subtotal is {inv.subtotal}",
+                f"Line amounts sum to {lines_sum:.2f}, but subtotal is {inv.subtotal:.2f}",
                 fixable=True,
             )
         )
@@ -73,8 +73,8 @@ def check_tax_maths(inv: ExtractedInvoice) -> list[ValidationIssue]:
             _issue(
                 "tax_maths",
                 "total",
-                f"Subtotal {inv.subtotal} + taxes {taxes:.2f} = {inv.subtotal + taxes:.2f}, "
-                f"but total is {inv.total}",
+                f"Subtotal {inv.subtotal:.2f} + taxes {taxes:.2f} = {inv.subtotal + taxes:.2f}, "
+                f"but total is {inv.total:.2f}",
                 fixable=True,
             )
         )
@@ -105,7 +105,7 @@ def check_tax_split(inv: ExtractedInvoice) -> list[ValidationIssue]:
             _issue(
                 "tax_split",
                 "sgst",
-                f"CGST ({inv.cgst}) and SGST ({inv.sgst}) should be equal",
+                f"CGST ({inv.cgst:.2f}) and SGST ({inv.sgst:.2f}) should be equal",
                 fixable=True,
             )
         )

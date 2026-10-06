@@ -9,22 +9,26 @@ from app.agents.lookups import get_lookups
 from app.agents.state import InvoiceState, event
 from app.agents.tools.validation import run_all
 from app.schemas.extraction import ExtractedInvoice
-from app.schemas.validation import Severity
+from app.schemas.validation import Severity, ValidationIssue
 
 MAX_EXTRACTION_ATTEMPTS = 3
 
 
-async def validate(state: InvoiceState, config: RunnableConfig) -> InvoiceState:
+async def check_extraction(
+    state: InvoiceState, config: RunnableConfig, extraction: dict
+) -> list[ValidationIssue]:
     lookups = get_lookups(config)
     tenant_id = state["tenant_id"]
-    inv = ExtractedInvoice.model_validate(state["extraction"])
-
-    issues = run_all(
-        inv,
+    return run_all(
+        ExtractedInvoice.model_validate(extraction),
         today=date.today(),
         others=await lookups.other_invoices(tenant_id, state["invoice_id"]),
         known_gstins=await lookups.known_vendor_gstins(tenant_id),
     )
+
+
+async def validate(state: InvoiceState, config: RunnableConfig) -> InvoiceState:
+    issues = await check_extraction(state, config, state["extraction"])
     errors = [i for i in issues if i.severity == Severity.error]
     fixable = [i for i in errors if i.fixable]
 

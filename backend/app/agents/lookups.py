@@ -55,6 +55,7 @@ class DbLookups:
                     invoice_number=ext.get("invoice_number") or "",
                 )
                 for iid, ext in rows
+                if ext  # defensive: tolerate legacy JSON-null rows
             ]
 
     async def tenant_settings(self, tenant_id: str) -> TenantSettings:

@@ -21,7 +21,9 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-JSONType = JSON().with_variant(JSONB(), "postgresql")
+# none_as_null: Python None is stored as SQL NULL, not the JSON value `null`, so
+# `IS NULL` filters mean what they say.
+JSONType = JSON(none_as_null=True).with_variant(JSONB(none_as_null=True), "postgresql")
 
 
 class Base(DeclarativeBase):
