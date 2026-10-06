@@ -85,12 +85,36 @@ def net_of_tds(inv: OpenInvoice, rate: Decimal) -> Decimal:
     return inv.total - tds_amount(inv, rate)
 
 
+def _name_key(name: str) -> str:
+    return " ".join(re.findall(r"[A-Z0-9]+", name.upper()))
+
+
 def vendor_key(name: str) -> str | None:
     """The first distinctive word of a vendor name (banks truncate narrations)."""
     for word in re.findall(r"[A-Z0-9]+", name.upper()):
         if len(word) >= 4 and word not in _GENERIC:
             return word
     return None
+
+
+def mentions(text: str, invoice_number: str) -> bool:
+    """True if the invoice number appears as whole tokens in the text, ignoring separators.
+
+    'OT/26-27/4112' matches 'NEFT/OT-26-27-4112' (tokens OT,26,27,4112), but '#00018' must
+    not match inside a bank reference such as 'REF00018'."""
+    target = normalize_ref(invoice_number)
+    if len(target) < MIN_REF_LEN:
+        return False
+    tokens = re.findall(r"[A-Z0-9]+", text.upper())
+    for i in range(len(tokens)):
+        run = ""
+        for tok in tokens[i:]:
+            run += tok
+            if run == target:
+                return True
+            if len(run) >= len(target) or not target.startswith(run):
+                break
+    return False
 
 
 def _in_window(inv: OpenInvoice, txn: Txn) -> bool:
@@ -111,7 +135,14 @@ class _Ledger:
         self.txns = sorted(txns, key=lambda t: (t.date, t.id))
         self.left = {t.id: t.amount for t in self.txns}
         self.alloc: dict[str, list[Allocation]] = {i.id: [] for i in self.invoices}
-        keys = {i.vendor_gstin or i.vendor_name: vendor_key(i.vendor_name) for i in self.invoices}
+        # A vendor is its GSTIN. An invoice whose GSTIN is missing (or unread) belongs to the
+        # vendor of the same name, so it doesn't split that vendor into two.
+        by_name = {_name_key(i.vendor_name): i.vendor_gstin for i in invoices if i.vendor_gstin}
+        self.identity = {
+            i.id: i.vendor_gstin or by_name.get(_name_key(i.vendor_name)) or i.vendor_name
+            for i in self.invoices
+        }
+        keys = {self.identity[i.id]: vendor_key(i.vendor_name) for i in self.invoices}
         self.vendor_keys = {k: v for k, v in keys.items() if v}
 
     def paid(self, inv: OpenInvoice) -> Decimal:
@@ -146,9 +177,7 @@ class _Ledger:
         return [
             i
             for i in self.invoices
-            if (i.vendor_gstin or i.vendor_name) == vendor
-            and not self.alloc[i.id]
-            and _in_window(i, txn)
+            if self.identity[i.id] == vendor and not self.alloc[i.id] and _in_window(i, txn)
         ]
 
 
@@ -162,16 +191,11 @@ def allocate_payments(invoices: list[OpenInvoice], txns: list[Txn]) -> dict[str,
 
 def _reference_pass(ledger: _Ledger) -> None:
     for txn in ledger.txns:
-        hay = normalize_ref(f"{txn.narration} {txn.reference or ''}")
-        refs = [
-            i
-            for i in ledger.invoices
-            if len(normalize_ref(i.invoice_number)) >= MIN_REF_LEN
-            and normalize_ref(i.invoice_number) in hay
-        ]
+        text = f"{txn.narration} {txn.reference or ''}"
+        refs = [i for i in ledger.invoices if mentions(text, i.invoice_number)]
         vendor = ledger.vendor_of(txn)
-        if vendor and len({(i.vendor_gstin or i.vendor_name) for i in refs}) > 1:
-            refs = [i for i in refs if (i.vendor_gstin or i.vendor_name) == vendor]
+        if vendor and len({ledger.identity[i.id] for i in refs}) > 1:
+            refs = [i for i in refs if ledger.identity[i.id] == vendor]
         if not refs:
             continue
         if len(refs) == 1:

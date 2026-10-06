@@ -151,3 +151,34 @@ def test_dates_listed_chronologically():
     second = txn("t2", "21040.00", "RTGS NIL/26-27/2045", day=date(2026, 10, 3))
     r = allocate_payments([N], [second, first])["n"]
     assert "(20 Sep 2026, 03 Oct 2026)" in r.explanation
+
+
+def test_invoice_number_must_match_whole_tokens():
+    from app.reconcile.payments import mentions
+
+    assert mentions("NEFT/OPALINE/OT/26-27/4112", "OT/26-27/4112")
+    assert mentions("IMPS KAV-26-27-1012 SEP", "KAV/26-27/1012")
+    assert not mentions("NEFT/OPALINE TEXTILES/TDS REF00018", "#00018")
+    assert not mentions("NEFT KAV/26-27/10123", "KAV/26-27/1012")  # longer number
+
+
+def test_numeric_invoice_number_not_matched_inside_bank_reference():
+    numeric = inv("num", "00018", "1180.00", "1000.00")
+    t = Txn("t1", date(2026, 9, 25), D("2661.12"), "NEFT/KAVERI/TDS 2%", "REF00018")
+    assert allocate_payments([numeric], [t])["num"].status == "unpaid"
+
+
+def test_invoice_without_gstin_does_not_split_its_vendor():
+    """Regression: a GSTIN-less invoice made 'Kaveri' two vendors, so every narration naming
+    Kaveri looked ambiguous and no payment was matched."""
+    no_gstin = OpenInvoice(
+        "ng",
+        None,
+        "Kaveri Office Supplies LLP",
+        "KAV/26-27/2000",
+        date(2026, 9, 1),
+        D("500.00"),
+        D("423.73"),
+    )
+    r = allocate_payments([A, no_gstin], [txn("t1", "17542.70", "NEFT KAVERI OFFICE")])
+    assert r["a"].status == "paid"

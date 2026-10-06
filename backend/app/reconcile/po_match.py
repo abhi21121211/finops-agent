@@ -134,17 +134,26 @@ async def _assign_lines(
     inv: ExtractedInvoice, po: POData, judge: Judge | None
 ) -> dict[int, tuple[int, float, str]]:
     """Greedy one-to-one assignment of invoice lines to PO lines, best similarity first."""
+
+    def rank(i: int, j: int) -> tuple[float, float, int, int]:
+        li, pl = inv.line_items[i], po.lines[j]
+        sim = similarity(li.description, pl.description)
+        # Tie-break near-identical descriptions (truncated "… (lot 2)" lines, colour
+        # variants) by whether price and quantity also agree. The bonus is small, so a
+        # clearly better description still wins and a wrong price is still reported.
+        tolerance = Decimal(str(PRICE_TOLERANCE_PCT))
+        diff_pct = abs(li.unit_price - pl.unit_price) / pl.unit_price * 100 if pl.unit_price else 0
+        price_ok = diff_pct <= tolerance
+        qty_ok = li.quantity <= pl.quantity - pl.billed_before
+        return (sim + 0.15 * bool(price_ok) + 0.05 * bool(qty_ok), sim, i, j)
+
     scored = sorted(
-        (
-            (similarity(li.description, pl.description), i, j)
-            for i, li in enumerate(inv.line_items)
-            for j, pl in enumerate(po.lines)
-        ),
+        (rank(i, j) for i in range(len(inv.line_items)) for j in range(len(po.lines))),
         reverse=True,
     )
     pairs: dict[int, tuple[int, float, str]] = {}
     used_po: set[int] = set()
-    for score, i, j in scored:
+    for _, score, i, j in scored:
         if score >= SURE_MATCH and i not in pairs and j not in used_po:
             pairs[i] = (j, score, "text")
             used_po.add(j)
@@ -154,7 +163,7 @@ async def _assign_lines(
     if judge:
         candidates: list[tuple[float, int, int]] = []
         taken: set[int] = set(used_po)
-        for score, i, j in scored:
+        for _, score, i, j in scored:
             if i in pairs or j in taken or score < MAYBE_MATCH:
                 continue
             if any(c[1] == i for c in candidates):

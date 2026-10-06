@@ -276,3 +276,41 @@ class Match(Base, Timestamped):
     explanation: Mapped[str] = mapped_column(Text)
     # Machine-readable detail: PO line comparison and payment allocations.
     details: Mapped[dict | None] = mapped_column(JSONType)
+
+
+class EvalRun(Base):
+    """One evaluation run (spec §8). Global, not tenant data."""
+
+    __tablename__ = "eval_runs"
+
+    id: Mapped[uuid.UUID] = _uuid()
+    git_sha: Mapped[str | None] = mapped_column(String(40))
+    label: Mapped[str | None] = mapped_column(String(200))
+    mode: Mapped[str] = mapped_column(String(20))  # full | smoke | oracle | custom
+    model: Mapped[str | None] = mapped_column(String(200))  # most-used model
+    n_cases: Mapped[int] = mapped_column(Integer)
+    field_accuracy: Mapped[float] = mapped_column(Numeric(6, 4))
+    line_item_f1: Mapped[float] = mapped_column(Numeric(6, 4))
+    routing_accuracy: Mapped[float] = mapped_column(Numeric(6, 4))
+    false_auto_approvals: Mapped[int] = mapped_column(Integer)
+    auto_approval_rate: Mapped[float] = mapped_column(Numeric(6, 4))
+    match_accuracy: Mapped[float | None] = mapped_column(Numeric(6, 4))
+    avg_cost_usd: Mapped[float] = mapped_column(Numeric(12, 6))
+    p50_latency_ms: Mapped[int] = mapped_column(Integer)
+    p95_latency_ms: Mapped[int] = mapped_column(Integer)
+    report: Mapped[dict] = mapped_column(JSONType)  # per-case detail for drill-down
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class EvalResult(Base):
+    __tablename__ = "eval_results"
+
+    id: Mapped[uuid.UUID] = _uuid()
+    eval_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("eval_runs.id", ondelete="CASCADE"), index=True
+    )
+    case_id: Mapped[str] = mapped_column(String(40))
+    field: Mapped[str] = mapped_column(String(60))
+    expected: Mapped[str | None] = mapped_column(Text)
+    actual: Mapped[str | None] = mapped_column(Text)
+    correct: Mapped[bool] = mapped_column()

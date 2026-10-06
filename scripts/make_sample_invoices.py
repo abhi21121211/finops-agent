@@ -68,13 +68,19 @@ def inr(x: Decimal) -> str:
 Item = tuple[str, str, Decimal, Decimal, Decimal]  # desc, hsn, qty, price, rate
 
 
-def po_items(po: DemoPO, qty: dict[int, str] | None = None, price: dict[int, str] | None = None
-             ) -> list[Item]:
+def po_items(
+    po: DemoPO, qty: dict[int, str] | None = None, price: dict[int, str] | None = None
+) -> list[Item]:
     """Invoice lines copied from a PO, optionally billing a different quantity or price."""
     qty, price = qty or {}, price or {}
     return [
-        (ln.description, ln.hsn_sac, Decimal(qty.get(n, ln.quantity)),
-         Decimal(price.get(n, ln.unit_price)), Decimal(ln.tax_rate))
+        (
+            ln.description,
+            ln.hsn_sac,
+            Decimal(qty.get(n, ln.quantity)),
+            Decimal(price.get(n, ln.unit_price)),
+            Decimal(ln.tax_rate),
+        )
         for n, ln in enumerate(po.lines)
     ]
 
@@ -95,45 +101,83 @@ class Spec:
 
 SPECS = [
     Spec(
-        "sample-01-intrastate", KAVERI, "KAV/26-27/1012", date(2026, 9, 12),
-        po_items(PO_KAVERI_STATIONERY), PO_KAVERI_STATIONERY.po_number,
-        "auto_approve", "matched",  # paid with sample-04 in one combined transfer
+        "sample-01-intrastate",
+        KAVERI,
+        "KAV/26-27/1012",
+        date(2026, 9, 12),
+        po_items(PO_KAVERI_STATIONERY),
+        PO_KAVERI_STATIONERY.po_number,
+        "auto_approve",
+        "matched",  # paid with sample-04 in one combined transfer
     ),
     Spec(
-        "sample-02-interstate", NILGIRI, "NIL/26-27/2045", date(2026, 9, 8),
+        "sample-02-interstate",
+        NILGIRI,
+        "NIL/26-27/2045",
+        date(2026, 9, 8),
         [
-            ("Managed hosting - September 2026", "998315", Decimal(1), Decimal("38500.00"),
-             Decimal(18)),
+            (
+                "Managed hosting - September 2026",
+                "998315",
+                Decimal(1),
+                Decimal("38500.00"),
+                Decimal(18),
+            ),
             ("Backup storage, 500 GB", "998315", Decimal(2), Decimal("2750.00"), Decimal(18)),
         ],
         None,
-        "human_review", "no_po",  # above the ₹50,000 limit and no PO; paid in two parts
+        "human_review",
+        "no_po",  # above the ₹50,000 limit and no PO; paid in two parts
     ),
     Spec(
-        "sample-03-scanned", SHREE_GANESH, "SHR/26-27/3071", date(2026, 9, 10),
-        po_items(PO_SHREE_GANESH_PACKAGING, qty={0: "500"}), PO_SHREE_GANESH_PACKAGING.po_number,
-        "auto_approve", "matched",  # first 500 of 1000 boxes; paid net of 2% TDS
+        "sample-03-scanned",
+        SHREE_GANESH,
+        "SHR/26-27/3071",
+        date(2026, 9, 10),
+        po_items(PO_SHREE_GANESH_PACKAGING, qty={0: "500"}),
+        PO_SHREE_GANESH_PACKAGING.po_number,
+        "auto_approve",
+        "matched",  # first 500 of 1000 boxes; paid net of 2% TDS
         scanned=True,
     ),
     Spec(
-        "sample-04-bad-tax", KAVERI, "KAV/26-27/1019", date(2026, 9, 18),
-        po_items(PO_KAVERI_SUPPLIES), PO_KAVERI_SUPPLIES.po_number,
-        "human_review", "matched",  # printed CGST is wrong, so line items + taxes != total
+        "sample-04-bad-tax",
+        KAVERI,
+        "KAV/26-27/1019",
+        date(2026, 9, 18),
+        po_items(PO_KAVERI_SUPPLIES),
+        PO_KAVERI_SUPPLIES.po_number,
+        "human_review",
+        "matched",  # printed CGST is wrong, so line items + taxes != total
         gst_misprint=Decimal("150.00"),
     ),
     Spec(
-        "sample-05-unknown-vendor", ZEPHYR, "ZEP/26-27/5003", date(2026, 9, 24),
+        "sample-05-unknown-vendor",
+        ZEPHYR,
+        "ZEP/26-27/5003",
+        date(2026, 9, 24),
         [
-            ("Stage and lighting rental, 1 day", "997319", Decimal(1), Decimal("18000.00"),
-             Decimal(18)),
+            (
+                "Stage and lighting rental, 1 day",
+                "997319",
+                Decimal(1),
+                Decimal("18000.00"),
+                Decimal(18),
+            ),
         ],
         None,
-        "human_review", "no_po",  # vendor not in the vendor master; unpaid
+        "human_review",
+        "no_po",  # vendor not in the vendor master; unpaid
     ),
     Spec(
-        "sample-06-po-price", KAVERI, "KAV/26-27/1027", date(2026, 9, 26),
-        po_items(PO_KAVERI_TONER, price={0: "2790.00"}), PO_KAVERI_TONER.po_number,
-        "human_review", "mismatch",  # toner billed 13.9% above the PO price
+        "sample-06-po-price",
+        KAVERI,
+        "KAV/26-27/1027",
+        date(2026, 9, 26),
+        po_items(PO_KAVERI_TONER, price={0: "2790.00"}),
+        PO_KAVERI_TONER.po_number,
+        "human_review",
+        "mismatch",  # toner billed 13.9% above the PO price
     ),
 ]
 
@@ -152,8 +196,14 @@ def build(spec: Spec, rng: random.Random) -> tuple[bytes, dict]:
         subtotal += amount
         tax += amount * rate / 100
         lines.append(
-            dict(description=desc, hsn_sac=hsn, quantity=qty, unit_price=price, tax_rate=rate,
-                 amount=amount)
+            dict(
+                description=desc,
+                hsn_sac=hsn,
+                quantity=qty,
+                unit_price=price,
+                tax_rate=rate,
+                amount=amount,
+            )
         )
     tax = money(tax)
     cgst = sgst = money(tax / 2) if intra else Decimal(0)
@@ -266,8 +316,10 @@ def to_scan(pdf_bytes: bytes, rng: random.Random) -> bytes:
 
 def bank_statement(truths: dict[str, dict]) -> str:
     """HDFC-style CSV paying the samples in the ways reconciliation must handle."""
-    t = {k: (Decimal(v["total"]), Decimal(v["subtotal"]), v["invoice_number"])
-         for k, v in truths.items()}
+    t = {
+        k: (Decimal(v["total"]), Decimal(v["subtotal"]), v["invoice_number"])
+        for k, v in truths.items()
+    }
     kav1, kav4 = t["sample-01-intrastate"], t["sample-04-bad-tax"]
     nil, shr = t["sample-02-interstate"], t["sample-03-scanned"]
     # sample-04's vendor misprinted CGST; it is paid at the corrected total.
@@ -276,13 +328,30 @@ def bank_statement(truths: dict[str, dict]) -> str:
     nil_tds = (nil[1] * Decimal("0.02")).quantize(TWO)
     nil_first = Decimal("30000.00")
     rows = [
-        ("15/09/26", "NEFT/ICIC/OFFICE RENT SEP 2026/LANDMARK REALTY", "N258100121", "85000.00", ""),
+        (
+            "15/09/26",
+            "NEFT/ICIC/OFFICE RENT SEP 2026/LANDMARK REALTY",
+            "N258100121",
+            "85000.00",
+            "",
+        ),
         ("20/09/26", f"NEFT/HDFC/NILGIRI CLOUD SERV/{nil[2]} PART", "N263300417", nil_first, ""),
         ("25/09/26", "UPI/CUSTOMER RECEIPT/ORDER 4471", "U268812233", "", "64,500.00"),
         ("30/09/26", "NEFT/SBIN/SHREE GANESH PACKA/SEP SUPPLY", "N273300808", shr_net, ""),
-        ("01/10/26", "NEFT/HDFC/KAVERI OFFICE SUPP/SEP BILLS", "N274400190", kav1[0] + kav4_due, ""),
-        ("03/10/26", f"RTGS/HDFC/NILGIRI CLOUD SERV/{nil[2]} BAL", "R276600033",
-         nil[0] - nil_first - nil_tds, ""),
+        (
+            "01/10/26",
+            "NEFT/HDFC/KAVERI OFFICE SUPP/SEP BILLS",
+            "N274400190",
+            kav1[0] + kav4_due,
+            "",
+        ),
+        (
+            "03/10/26",
+            f"RTGS/HDFC/NILGIRI CLOUD SERV/{nil[2]} BAL",
+            "R276600033",
+            nil[0] - nil_first - nil_tds,
+            "",
+        ),
         ("05/10/26", "ACH/SALARY BATCH OCT", "A278800001", "312000.00", ""),
     ]
     lines = ["Date,Narration,Chq./Ref.No.,Withdrawal Amt.,Deposit Amt."]

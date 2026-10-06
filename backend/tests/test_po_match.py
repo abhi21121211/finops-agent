@@ -136,3 +136,29 @@ async def test_judge_saying_no_leaves_line_unmatched():
 def test_similarity_bounds():
     assert similarity("A4 copier paper, 75 gsm (ream)", "A4 Copier Paper 75gsm ream") > 0.75
     assert similarity("Stapler, heavy duty", "Corrugated boxes") < 0.35
+
+
+async def test_truncated_lot_descriptions_paired_by_price():
+    """Regression: the PDF truncates long descriptions, so lots look identical; pairing on
+    text alone swapped two lines and reported false price mismatches."""
+    p = po(
+        line("Security guard, 12h shift (per day) (lot 1)", "5", "950.00"),
+        line("Security guard, 12h shift (per day) (lot 2)", "4", "997.50"),
+    )
+    lines = [
+        li("Security guard, 12h shift (per day) (lot …", 4, D("997.50")),
+        li("Security guard, 12h shift (per day) (lot …", 5, D("950.00")),
+    ]
+    sub = D("8740.00")
+    r = await match_po(
+        inv(
+            line_items=lines,
+            subtotal=sub,
+            cgst=sub * D("0.09"),
+            sgst=sub * D("0.09"),
+            total=sub * D("1.18"),
+        ),
+        [p],
+    )
+    assert r.status == "matched", r.explanation
+    assert [m.po_line for m in r.lines] == [1, 0]

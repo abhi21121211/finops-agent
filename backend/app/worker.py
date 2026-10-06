@@ -41,9 +41,12 @@ _TRANSIENT = (openai.RateLimitError, openai.APIConnectionError, openai.InternalS
 
 
 def _is_transient(e: Exception) -> bool:
-    return isinstance(e, _TRANSIENT) or (
-        isinstance(e, openai.APIStatusError) and e.status_code in (408, 429, 502, 503, 504)
-    )
+    if isinstance(e, _TRANSIENT):
+        return True
+    if not isinstance(e, openai.APIStatusError):
+        return False
+    # The proxy sometimes wraps a provider's 429 quota error as a 400/403.
+    return e.status_code in (408, 429, 502, 503, 504) or "429" in str(e) or "quota" in str(e)
 
 
 class Run:
