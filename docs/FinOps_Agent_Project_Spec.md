@@ -450,10 +450,10 @@ Planned at 1–2 hours a day. Start: 7 Oct 2026.
 
 Fill these in from real eval runs. Do not estimate.
 
-- Field-level extraction accuracy on 100 invoices: ____%
-- Auto-approval rate with zero false approvals: ____%
+- Field-level extraction accuracy on 100 invoices: 99.93% (6 Oct 2026, free-tier gemini-flash-lite)
+- Auto-approval rate with zero false approvals: 70.5% (67 of 95 gated invoices)
 - Cost per invoice before and after model routing: ____ → ____
-- p95 processing time per invoice: ____ seconds
+- p95 processing time per invoice: 89 seconds on free tiers (p50 3.9 s; p95 is rate-limit backoff)
 - Anomaly detection recall on seeded fraud cases: ____%
 - Text-to-SQL accuracy on 30 questions: ____%
 

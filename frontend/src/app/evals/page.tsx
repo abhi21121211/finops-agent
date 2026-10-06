@@ -47,7 +47,9 @@ export default function EvalsPage() {
 }
 
 function TrendChart({ runs }: { runs: EvalRunSummary[] }) {
-  const data = [...runs]
+  // Full runs only: smoke subsets and experiments are not comparable with each other.
+  const full = runs.filter((r) => r.mode === "full");
+  const data = [...(full.length >= 2 ? full : runs)]
     .reverse()
     .map((r) => ({
       when: new Date(r.created_at).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" }),
@@ -59,7 +61,7 @@ function TrendChart({ runs }: { runs: EvalRunSummary[] }) {
   return (
     <section className="rounded-lg border bg-background p-4">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-medium">Accuracy over time</h2>
+        <h2 className="text-sm font-medium">Accuracy over time (full runs, 100 invoices)</h2>
         <div className="flex gap-4 text-xs text-muted-foreground">
           <LegendKey color={SERIES.field} label="Field accuracy" />
           <LegendKey color={SERIES.routing} label="Routing accuracy" />
@@ -82,8 +84,8 @@ function TrendChart({ runs }: { runs: EvalRunSummary[] }) {
               labelFormatter={(_, p) => (p?.[0] ? `${p[0].payload.when} · ${p[0].payload.label}` : "")}
               contentStyle={{ fontSize: 12, borderRadius: 8 }}
             />
-            <Line type="monotone" dataKey="field" stroke={SERIES.field} strokeWidth={2} dot={{ r: 4 }} />
-            <Line type="monotone" dataKey="routing" stroke={SERIES.routing} strokeWidth={2} dot={{ r: 4 }} />
+            <Line type="monotone" dataKey="field" stroke={SERIES.field} strokeWidth={2} dot={{ r: 4 }} isAnimationActive={false} />
+            <Line type="monotone" dataKey="routing" stroke={SERIES.routing} strokeWidth={2} dot={{ r: 4 }} isAnimationActive={false} />
           </LineChart>
         </ResponsiveContainer>
       </div>

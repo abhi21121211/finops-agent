@@ -4,11 +4,31 @@ An autonomous accounts-payable agent for Indian small businesses and CA firms: i
 vendor invoices, extracts and validates them, reconciles them against purchase orders and
 bank statements, and asks a human only when it is unsure.
 
-> Status: **M3, Three-way reconciliation.** Upload an invoice; the agent extracts it,
-> checks it with deterministic rules, matches it to its purchase order and to bank payments
-> (part-payments, combined transfers, TDS), and either auto-approves it or pauses for a
-> human. Paused invoices survive restarts.
+> Status: **M4, Evals and deployment.** The agent extracts, validates, reconciles and routes
+> invoices, and is measured on a 100-invoice synthetic eval set with an eval-gated CI.
 > See the [project spec](docs/FinOps_Agent_Project_Spec.md) for the roadmap.
+
+## Results (100 synthetic invoices, free-tier models)
+
+Measured by `make eval` on 6 Oct 2026 (run `M4 baseline`, model `gemini-flash-lite` via the
+free-tier router). Nothing here is estimated.
+
+| Metric | Result |
+|---|---|
+| Field-level extraction accuracy (15 fields × 100 invoices) | **99.93%** |
+| Line-item F1 | **100%** |
+| Routing accuracy (95 cases within implemented rules) | **98.9%** |
+| False auto-approvals | **0** |
+| Auto-approval rate (with zero false approvals) | **70.5%** of invoices |
+| Three-way reconciliation status accuracy | **100%** |
+| Cost per invoice | **$0** actual (free tiers) · $0.0032 at list price |
+| Latency p50 / p95 | **3.9 s** / 89 s (p95 is free-tier rate-limit backoff) |
+
+The dataset has 40 clean PDFs, 30 scanned-looking images, 15 multi-page invoices and 15
+deliberate problems, across 10 layouts. The one routing miss is a scan where the model
+misread the buyer's GSTIN; the checksum caught it and sent it to a human. Five cases
+(changed bank details, hidden prompt injection) need the M5 anomaly rules and are reported
+separately rather than hidden.
 
 ## Architecture
 
@@ -92,6 +112,33 @@ make samples        # writes samples/*.pdf|png + *.expected.json
 `samples/bank-statement-sep-2026.csv` (HDFC layout) pays them, plus rent, salary and an
 incoming receipt that must be ignored. Upload it on the Reconciliation page.
 
+## Evaluation
+
+```bash
+make eval-oracle   # ground-truth extraction: tests rules and matching, no LLM calls
+make eval-smoke    # 20 fixed cases, as run on every pull request
+make eval          # all 100 cases; records an eval_runs row and a JSON report
+```
+
+- `scripts/generate_dataset.py` builds the dataset deterministically, with ground truth,
+  vendors, POs and a bank statement. CI regenerates it instead of storing it.
+- `evals/run.py` runs each case through the real workflow in a fresh tenant and scores:
+  field accuracy, line-item F1, routing, false auto-approvals, reconciliation, cost and latency.
+- **The gate** (`.github/workflows/eval.yml`) fails a pull request on any false
+  auto-approval, or a field-accuracy drop of more than 2 points below `evals/baseline.json`.
+  Demonstrated: a prompt that takes the buyer as the vendor dropped accuracy to 96.3% and
+  failed the gate.
+- **Oracle mode** separates extraction errors from logic errors. It found three
+  reconciliation bugs before any model was involved.
+- The **Evals** page shows history, accuracy by field, document type and model, and lets
+  you drill into failed cases.
+
+## Deployment
+
+Free tiers only: Vercel (web), a Hugging Face Docker Space (API, worker and LLM router),
+Supabase (Postgres and storage) and Upstash (Redis). See **[docs/deploy.md](docs/deploy.md)**.
+CI deploys the backend on every green push to `main`.
+
 ## Tests
 
 ```bash
@@ -123,3 +170,4 @@ docs/           spec, architecture decision records
 
 - [ADR 0001: Free-tier stack](docs/decisions/0001-free-tier-stack.md)
 - [ADR 0002: What reconciliation blocks, and how payments are matched](docs/decisions/0002-reconciliation-routing.md)
+- [ADR 0003: Free deployment](docs/decisions/0003-free-deployment.md)
