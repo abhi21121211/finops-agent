@@ -3,7 +3,7 @@
     "vendor_name": "Zephyr Event Rentals",
     "vendor_gstin": "07ZEPCT5531Q1ZM",
     "buyer_gstin": "27DEMCT1001D1ZJ",
-    "invoice_number": "ZEP/26-27/677",
+    "invoice_number": "ZEP/26-27/5003",
     "invoice_date": "2026-09-24",
     "due_date": "2026-10-24",
     "po_number": null,
@@ -26,5 +26,6 @@
     "bank_account_last4": "0093",
     "bank_ifsc": "YESB0000771"
   },
-  "expected_route": "human_review"
+  "expected_route": "human_review",
+  "expected_match": "no_po"
 }

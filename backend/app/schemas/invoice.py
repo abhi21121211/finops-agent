@@ -47,6 +47,7 @@ class InvoiceDetail(InvoiceSummary):
     extraction_attempts: int
     validation_issues: list[dict[str, Any]]
     route: str | None
+    match: dict[str, Any] | None  # MatchResult: PO line comparison + payment allocations
     reviews: list["ReviewOut"]
 
 

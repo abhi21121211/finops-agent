@@ -2,7 +2,7 @@
 
 Every rule that fires is recorded as a reason so the reviewer sees all of them; the route
 is the strictest outcome. Rules for later milestones are inert until their data exists:
-reconciliation (M3) sets match_result, anomaly detection (M5) sets anomalies, and
+anomaly detection (M5) sets anomalies, and
 vendor_query (M5) needs the email tool, so those cases go to a human for now.
 """
 
@@ -41,9 +41,12 @@ async def route(state: InvoiceState, config: RunnableConfig) -> InvoiceState:
         fields = ", ".join(f"{k} ({v:.0%})" for v, k in low[:4])
         reasons.append(f"low confidence below {settings.confidence_threshold:.0%}: {fields}")
 
+    # Only PO problems block approval: unpaid/partial describe payment, which normally
+    # comes after approval (ADR 0002).
     match = state.get("match_result")
-    if match is not None and match.get("status") != "matched":
-        reasons.append(f"reconciliation status {match.get('status')}")
+    if match is not None and match["status"] in ("no_po", "mismatch"):
+        label = "no purchase order" if match["status"] == "no_po" else "PO mismatch"
+        reasons.append(f"{label}: {match['po']['explanation']}")
 
     if inv.total > settings.auto_approve_limit:
         limit = Decimal(settings.auto_approve_limit)

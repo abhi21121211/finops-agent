@@ -32,6 +32,7 @@ from app.core.logging import configure_logging, log
 from app.core.queue import redis_settings
 from app.db.models import Invoice, InvoiceFile, InvoiceLine, InvoiceStatus
 from app.db.session import SessionLocal
+from app.reconcile.service import refresh_payments, save_match
 from app.storage import get_storage
 
 MAX_TRIES = 4
@@ -111,6 +112,8 @@ class Run:
             self.inv.error_message = values.get("error") or "Extraction produced no result"
             await self.add_events([event("workflow", "failed", self.inv.error_message)])
             await self.set_status(InvoiceStatus.failed)
+        # Approval or rejection changes which invoices can claim payments.
+        await refresh_payments(self.session, self.inv.tenant_id)
         log.info(
             "invoice_run_done",
             invoice_id=str(self.inv.id),
@@ -150,6 +153,8 @@ class Run:
         inv.route = values.get("route")
         inv.route_reasons = values.get("route_reasons")
         inv.field_confidence = values.get("field_confidence") or inv.field_confidence
+        if values.get("match_result"):
+            await save_match(s, inv.tenant_id, inv.id, values["match_result"])
 
         extraction = values.get("extraction")
         if extraction and extraction != inv.extraction:
@@ -263,6 +268,13 @@ async def resume_invoice(
         await run.execute(Command(resume=decision))
 
 
+async def reconcile_tenant(ctx: dict[str, Any], tenant_id: str) -> None:
+    """After a bank statement upload: recompute every invoice's payment match."""
+    async with SessionLocal() as session:
+        changed = await refresh_payments(session, uuid.UUID(tenant_id))
+    log.info("payments_refreshed", tenant_id=tenant_id, changed=changed)
+
+
 async def startup(ctx: dict[str, Any]) -> None:
     configure_logging(get_settings().log_level)
     # `kill -USR1 <pid>` dumps every thread's stack: the first tool for a stuck job.
@@ -277,7 +289,7 @@ async def shutdown(ctx: dict[str, Any]) -> None:
 
 
 class WorkerSettings:
-    functions = [process_invoice, resume_invoice]
+    functions = [process_invoice, resume_invoice, reconcile_tenant]
     on_startup = startup
     on_shutdown = shutdown
     redis_settings = redis_settings()

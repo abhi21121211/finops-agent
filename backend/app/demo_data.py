@@ -61,3 +61,59 @@ ZEPHYR = DemoVendor(
 )
 
 KNOWN_VENDORS = (KAVERI, NILGIRI, SHREE_GANESH)
+
+
+@dataclass(frozen=True)
+class DemoLine:
+    description: str
+    hsn_sac: str
+    quantity: str
+    unit_price: str
+    tax_rate: str
+
+
+@dataclass(frozen=True)
+class DemoPO:
+    po_number: str
+    vendor: DemoVendor
+    date: str
+    lines: tuple[DemoLine, ...]
+
+
+PO_KAVERI_STATIONERY = DemoPO(
+    "PO-2026-0412",
+    KAVERI,
+    "2026-09-05",
+    (
+        DemoLine("A4 copier paper, 75 gsm (ream)", "4802", "40", "245.00", "12"),
+        DemoLine("Gel pens, blue (box of 10)", "9608", "25", "120.00", "18"),
+        DemoLine("Box files, foolscap", "4820", "30", "85.50", "18"),
+    ),
+)
+PO_KAVERI_SUPPLIES = DemoPO(
+    "PO-2026-0431",
+    KAVERI,
+    "2026-09-15",
+    (
+        DemoLine("Whiteboard markers (box of 12)", "9608", "10", "310.00", "18"),
+        DemoLine("Stapler, heavy duty", "8472", "4", "640.00", "18"),
+    ),
+)
+PO_KAVERI_TONER = DemoPO(
+    "PO-2026-0450",
+    KAVERI,
+    "2026-09-20",
+    (DemoLine("Printer toner cartridge, black", "8443", "6", "2450.00", "18"),),
+)
+# Ordered 1000 boxes; the sample invoice bills the first 500 (a normal part-delivery).
+PO_SHREE_GANESH_PACKAGING = DemoPO(
+    "PO-2026-0398",
+    SHREE_GANESH,
+    "2026-08-28",
+    (
+        DemoLine("Corrugated boxes 18x12x10 in", "4819", "1000", "32.40", "12"),
+        DemoLine("Packing tape 48 mm x 65 m", "3919", "60", "54.00", "18"),
+    ),
+)
+
+DEMO_POS = (PO_KAVERI_STATIONERY, PO_KAVERI_SUPPLIES, PO_KAVERI_TONER, PO_SHREE_GANESH_PACKAGING)

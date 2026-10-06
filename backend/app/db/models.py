@@ -195,3 +195,84 @@ class ReviewDecision(Base):
     field_edits: Mapped[dict | None] = mapped_column(JSONType)
     comment: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class POStatus(enum.StrEnum):
+    open = "open"
+    closed = "closed"
+
+
+class PurchaseOrder(Base, Timestamped):
+    __tablename__ = "purchase_orders"
+    __table_args__ = (UniqueConstraint("tenant_id", "po_number"),)
+
+    id: Mapped[uuid.UUID] = _uuid()
+    tenant_id: Mapped[uuid.UUID] = _tenant_fk()
+    vendor_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("vendors.id", ondelete="RESTRICT"), index=True
+    )
+    po_number: Mapped[str] = mapped_column(String(100))
+    date: Mapped[date] = mapped_column(Date)
+    total: Mapped[Decimal] = mapped_column(Numeric(14, 2))  # before tax
+    status: Mapped[POStatus] = mapped_column(_enum(POStatus, "po_status"), default=POStatus.open)
+
+    lines: Mapped[list["POLine"]] = relationship(
+        back_populates="po", cascade="all, delete-orphan", order_by="POLine.position"
+    )
+    vendor: Mapped[Vendor] = relationship()
+
+
+class POLine(Base):
+    __tablename__ = "po_lines"
+
+    id: Mapped[uuid.UUID] = _uuid()
+    po_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("purchase_orders.id", ondelete="CASCADE"), index=True
+    )
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    description: Mapped[str] = mapped_column(Text)
+    quantity: Mapped[Decimal] = mapped_column(Numeric(14, 3))
+    unit_price: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+
+    po: Mapped[PurchaseOrder] = relationship(back_populates="lines")
+
+
+class BankTransaction(Base):
+    __tablename__ = "bank_transactions"
+    # Re-uploading the same statement must not duplicate rows.
+    __table_args__ = (UniqueConstraint("tenant_id", "fingerprint"),)
+
+    id: Mapped[uuid.UUID] = _uuid()
+    tenant_id: Mapped[uuid.UUID] = _tenant_fk()
+    date: Mapped[date] = mapped_column(Date, index=True)
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))  # negative = money out
+    narration: Mapped[str] = mapped_column(Text)
+    reference: Mapped[str | None] = mapped_column(String(200))
+    fingerprint: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class MatchStatus(enum.StrEnum):
+    matched = "matched"
+    partial = "partial"
+    mismatch = "mismatch"
+    no_po = "no_po"
+    unpaid = "unpaid"
+
+
+class Match(Base, Timestamped):
+    __tablename__ = "matches"
+
+    id: Mapped[uuid.UUID] = _uuid()
+    tenant_id: Mapped[uuid.UUID] = _tenant_fk()
+    invoice_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("invoices.id", ondelete="CASCADE"), unique=True
+    )
+    po_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("purchase_orders.id", ondelete="SET NULL"), index=True
+    )
+    bank_transaction_ids: Mapped[list | None] = mapped_column(JSONType)
+    status: Mapped[MatchStatus] = mapped_column(_enum(MatchStatus, "match_status"))
+    explanation: Mapped[str] = mapped_column(Text)
+    # Machine-readable detail: PO line comparison and payment allocations.
+    details: Mapped[dict | None] = mapped_column(JSONType)

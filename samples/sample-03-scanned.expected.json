@@ -3,7 +3,7 @@
     "vendor_name": "Shree Ganesh Packaging Works",
     "vendor_gstin": "27SGPCW2264S1ZG",
     "buyer_gstin": "27DEMCT1001D1ZJ",
-    "invoice_number": "SHR/26-27/178",
+    "invoice_number": "SHR/26-27/3071",
     "invoice_date": "2026-09-10",
     "due_date": "2026-10-10",
     "po_number": "PO-2026-0398",
@@ -34,5 +34,6 @@
     "bank_account_last4": "1651",
     "bank_ifsc": "SBIN0041869"
   },
-  "expected_route": "auto_approve"
+  "expected_route": "auto_approve",
+  "expected_match": "matched"
 }

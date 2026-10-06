@@ -55,4 +55,4 @@ async def validate(state: InvoiceState, config: RunnableConfig) -> InvoiceState:
 
 
 def after_validate(state: InvoiceState) -> str:
-    return "extract" if state.get("retry_extraction") else "route"
+    return "extract" if state.get("retry_extraction") else "reconcile"

@@ -1,0 +1,31 @@
+{
+  "expected_extraction": {
+    "vendor_name": "Kaveri Office Supplies LLP",
+    "vendor_gstin": "27KAVCO4821K1ZJ",
+    "buyer_gstin": "27DEMCT1001D1ZJ",
+    "invoice_number": "KAV/26-27/1027",
+    "invoice_date": "2026-09-26",
+    "due_date": "2026-10-26",
+    "po_number": "PO-2026-0450",
+    "currency": "INR",
+    "line_items": [
+      {
+        "description": "Printer toner cartridge, black",
+        "hsn_sac": "8443",
+        "quantity": "6",
+        "unit_price": "2790.00",
+        "tax_rate": "18",
+        "amount": "16740.00"
+      }
+    ],
+    "subtotal": "16740.00",
+    "cgst": "1506.60",
+    "sgst": "1506.60",
+    "igst": "0",
+    "total": "19753.20",
+    "bank_account_last4": "0517",
+    "bank_ifsc": "HDFC0106756"
+  },
+  "expected_route": "human_review",
+  "expected_match": "mismatch"
+}

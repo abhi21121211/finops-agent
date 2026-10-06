@@ -3,9 +3,9 @@
     "vendor_name": "Nilgiri Cloud Services Pvt Ltd",
     "vendor_gstin": "29NILCC7310N1ZD",
     "buyer_gstin": "27DEMCT1001D1ZJ",
-    "invoice_number": "NIL/26-27/946",
-    "invoice_date": "2026-09-12",
-    "due_date": "2026-10-12",
+    "invoice_number": "NIL/26-27/2045",
+    "invoice_date": "2026-09-08",
+    "due_date": "2026-10-08",
     "po_number": null,
     "currency": "INR",
     "line_items": [
@@ -34,5 +34,6 @@
     "bank_account_last4": "8850",
     "bank_ifsc": "ICIC0000418"
   },
-  "expected_route": "human_review"
+  "expected_route": "human_review",
+  "expected_match": "no_po"
 }

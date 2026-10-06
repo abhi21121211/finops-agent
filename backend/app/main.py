@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, invoices
+from app.api import auth, invoices, master
 from app.core.config import get_settings
 from app.core.logging import configure_logging, log
 from app.storage import get_storage
@@ -34,3 +34,4 @@ async def health() -> dict[str, str]:
 
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(invoices.router, prefix="/api/v1")
+app.include_router(master.router, prefix="/api/v1")

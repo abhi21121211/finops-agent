@@ -25,6 +25,7 @@ from app.db.models import (
     InvoiceFile,
     InvoiceSource,
     InvoiceStatus,
+    Match,
     ReviewAction,
     ReviewDecision,
     User,
@@ -86,6 +87,7 @@ async def _detail(session: AsyncSession, inv: Invoice, storage: Storage) -> Invo
         .where(ReviewDecision.invoice_id == inv.id)
         .order_by(ReviewDecision.created_at)
     )
+    match = await session.scalar(select(Match).where(Match.invoice_id == inv.id))
     original = next((f for f in inv.files if f.page_no == 0), None)
     pages = [
         PageOut(page_no=f.page_no, url=storage.presigned_url(f.s3_key))
@@ -108,6 +110,7 @@ async def _detail(session: AsyncSession, inv: Invoice, storage: Storage) -> Invo
         extraction_attempts=inv.extraction_attempts,
         validation_issues=inv.validation_issues or [],
         route=inv.route,
+        match=match.details if match else None,
         reviews=[
             ReviewOut(
                 action=r.action,

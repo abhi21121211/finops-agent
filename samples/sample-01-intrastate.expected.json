@@ -3,9 +3,9 @@
     "vendor_name": "Kaveri Office Supplies LLP",
     "vendor_gstin": "27KAVCO4821K1ZJ",
     "buyer_gstin": "27DEMCT1001D1ZJ",
-    "invoice_number": "KAV/26-27/333",
-    "invoice_date": "2026-09-27",
-    "due_date": "2026-10-27",
+    "invoice_number": "KAV/26-27/1012",
+    "invoice_date": "2026-09-12",
+    "due_date": "2026-10-12",
     "po_number": "PO-2026-0412",
     "currency": "INR",
     "line_items": [
@@ -42,5 +42,6 @@
     "bank_account_last4": "0517",
     "bank_ifsc": "HDFC0106756"
   },
-  "expected_route": "auto_approve"
+  "expected_route": "auto_approve",
+  "expected_match": "matched"
 }
