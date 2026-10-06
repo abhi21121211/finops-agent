@@ -338,6 +338,9 @@ async def run(args) -> int:
     path = REPORTS / f"{datetime.now(UTC):%Y%m%dT%H%M%S}-{mode}.json"
     path.write_text(json.dumps(report, indent=2, default=str))
 
+    if args.write_baseline:
+        write_baseline(mode, metrics, results, manifest, report["git_sha"])
+
     if not args.no_record:
         async with SessionLocal() as s:
             run_row = EvalRun(
@@ -420,6 +423,22 @@ async def run(args) -> int:
     return 0
 
 
+def write_baseline(
+    mode: str, metrics: dict, results: list[CaseResult], manifest: dict, sha: str | None
+) -> None:
+    """Record this run as the gate's reference. A full run also sets the smoke baseline from
+    the same results restricted to the smoke cases, so both come from one measurement."""
+    data = json.loads(BASELINE.read_text()) if BASELINE.exists() else {}
+    stamp = {"git_sha": sha, "created_at": datetime.now(UTC).isoformat()}
+    keys = ("field_accuracy", "line_item_f1", "routing_accuracy", "false_auto_approvals")
+    data[mode] = {k: metrics[k] for k in keys} | stamp
+    if mode == "full":
+        smoke = aggregate([r for r in results if r.case_id in set(manifest["smoke"])])
+        data["smoke"] = {k: smoke[k] for k in keys} | stamp | {"derived_from": "full"}
+    BASELINE.write_text(json.dumps(data, indent=2) + "\n")
+    print(f"baseline updated: {', '.join(k for k in data if k in (mode, 'smoke'))}")
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     p.add_argument("--smoke", action="store_true", help="the fixed 20-case subset")
@@ -429,6 +448,11 @@ def main() -> None:
     p.add_argument("--label", help="free-text label stored with the run")
     p.add_argument("--no-record", action="store_true", help="don't write eval_runs rows")
     p.add_argument("--no-gate", action="store_true")
+    p.add_argument(
+        "--write-baseline",
+        action="store_true",
+        help="store this run as the gate baseline (a full run also sets smoke)",
+    )
     sys.exit(asyncio.run(run(p.parse_args())))
 
 

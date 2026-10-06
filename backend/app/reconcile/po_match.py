@@ -144,8 +144,11 @@ async def _assign_lines(
         tolerance = Decimal(str(PRICE_TOLERANCE_PCT))
         diff_pct = abs(li.unit_price - pl.unit_price) / pl.unit_price * 100 if pl.unit_price else 0
         price_ok = diff_pct <= tolerance
-        qty_ok = li.quantity <= pl.quantity - pl.billed_before
-        return (sim + 0.15 * bool(price_ok) + 0.05 * bool(qty_ok), sim, i, j)
+        available = pl.quantity - pl.billed_before
+        qty_ok = li.quantity <= available
+        qty_exact = li.quantity == available  # billing exactly what is left: likely its line
+        bonus = 0.15 * bool(price_ok) + 0.05 * bool(qty_ok) + 0.04 * bool(qty_exact)
+        return (sim + bonus, sim, i, j)
 
     scored = sorted(
         (rank(i, j) for i in range(len(inv.line_items)) for j in range(len(po.lines))),

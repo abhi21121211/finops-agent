@@ -162,3 +162,22 @@ async def test_truncated_lot_descriptions_paired_by_price():
     )
     assert r.status == "matched", r.explanation
     assert [m.po_line for m in r.lines] == [1, 0]
+
+
+async def test_identical_lots_at_same_price_paired_by_exact_quantity():
+    """Regression (eval case-072): truncated lot lines at one price were paired greedily
+    with the wrong quantities and reported as over-billing."""
+    p = po(line("Guard shift (lot 1)", "4", "950.00"), line("Guard shift (lot 2)", "2", "950.00"))
+    lines = [li("Guard shift (lot …", 2, D("950.00")), li("Guard shift (lot …", 4, D("950.00"))]
+    sub = D("5700.00")
+    r = await match_po(
+        inv(
+            line_items=lines,
+            subtotal=sub,
+            cgst=sub * D("0.09"),
+            sgst=sub * D("0.09"),
+            total=sub * D("1.18"),
+        ),
+        [p],
+    )
+    assert r.status == "matched", r.explanation
