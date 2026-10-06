@@ -1,35 +1,38 @@
 {
-  "vendor_name": "Nilgiri Cloud Services Pvt Ltd",
-  "vendor_gstin": "29DRACW3120Z1ZG",
-  "buyer_gstin": "27DTFCF1801L1ZK",
-  "invoice_number": "NIL/26-27/811",
-  "invoice_date": "2026-09-07",
-  "due_date": "2026-10-07",
-  "po_number": null,
-  "currency": "INR",
-  "line_items": [
-    {
-      "description": "Managed hosting - September 2026",
-      "hsn_sac": "998315",
-      "quantity": "1",
-      "unit_price": "38500.00",
-      "tax_rate": "18",
-      "amount": "38500.00"
-    },
-    {
-      "description": "Backup storage, 500 GB",
-      "hsn_sac": "998315",
-      "quantity": "2",
-      "unit_price": "2750.00",
-      "tax_rate": "18",
-      "amount": "5500.00"
-    }
-  ],
-  "subtotal": "44000.00",
-  "cgst": "0",
-  "sgst": "0",
-  "igst": "7920.00",
-  "total": "51920.00",
-  "bank_account_last4": "8850",
-  "bank_ifsc": "HDFC0629395"
+  "expected_extraction": {
+    "vendor_name": "Nilgiri Cloud Services Pvt Ltd",
+    "vendor_gstin": "29NILCC7310N1ZD",
+    "buyer_gstin": "27DEMCT1001D1ZJ",
+    "invoice_number": "NIL/26-27/946",
+    "invoice_date": "2026-09-12",
+    "due_date": "2026-10-12",
+    "po_number": null,
+    "currency": "INR",
+    "line_items": [
+      {
+        "description": "Managed hosting - September 2026",
+        "hsn_sac": "998315",
+        "quantity": "1",
+        "unit_price": "38500.00",
+        "tax_rate": "18",
+        "amount": "38500.00"
+      },
+      {
+        "description": "Backup storage, 500 GB",
+        "hsn_sac": "998315",
+        "quantity": "2",
+        "unit_price": "2750.00",
+        "tax_rate": "18",
+        "amount": "5500.00"
+      }
+    ],
+    "subtotal": "44000.00",
+    "cgst": "0",
+    "sgst": "0",
+    "igst": "7920.00",
+    "total": "51920.00",
+    "bank_account_last4": "8850",
+    "bank_ifsc": "ICIC0000418"
+  },
+  "expected_route": "human_review"
 }

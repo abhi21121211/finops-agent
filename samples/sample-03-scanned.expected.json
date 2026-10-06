@@ -1,35 +1,38 @@
 {
-  "vendor_name": "Shree Ganesh Packaging Works",
-  "vendor_gstin": "27RHACU5532J1ZD",
-  "buyer_gstin": "27ZTXCB3497T1ZG",
-  "invoice_number": "SHR/26-27/159",
-  "invoice_date": "2026-09-02",
-  "due_date": "2026-10-02",
-  "po_number": "PO-2026-0398",
-  "currency": "INR",
-  "line_items": [
-    {
-      "description": "Corrugated boxes 18x12x10 in",
-      "hsn_sac": "4819",
-      "quantity": "500",
-      "unit_price": "32.40",
-      "tax_rate": "12",
-      "amount": "16200.00"
-    },
-    {
-      "description": "Packing tape 48 mm x 65 m",
-      "hsn_sac": "3919",
-      "quantity": "60",
-      "unit_price": "54.00",
-      "tax_rate": "18",
-      "amount": "3240.00"
-    }
-  ],
-  "subtotal": "19440.00",
-  "cgst": "1263.60",
-  "sgst": "1263.60",
-  "igst": "0",
-  "total": "21967.20",
-  "bank_account_last4": "1651",
-  "bank_ifsc": "HDFC0041869"
+  "expected_extraction": {
+    "vendor_name": "Shree Ganesh Packaging Works",
+    "vendor_gstin": "27SGPCW2264S1ZG",
+    "buyer_gstin": "27DEMCT1001D1ZJ",
+    "invoice_number": "SHR/26-27/178",
+    "invoice_date": "2026-09-10",
+    "due_date": "2026-10-10",
+    "po_number": "PO-2026-0398",
+    "currency": "INR",
+    "line_items": [
+      {
+        "description": "Corrugated boxes 18x12x10 in",
+        "hsn_sac": "4819",
+        "quantity": "500",
+        "unit_price": "32.40",
+        "tax_rate": "12",
+        "amount": "16200.00"
+      },
+      {
+        "description": "Packing tape 48 mm x 65 m",
+        "hsn_sac": "3919",
+        "quantity": "60",
+        "unit_price": "54.00",
+        "tax_rate": "18",
+        "amount": "3240.00"
+      }
+    ],
+    "subtotal": "19440.00",
+    "cgst": "1263.60",
+    "sgst": "1263.60",
+    "igst": "0",
+    "total": "21967.20",
+    "bank_account_last4": "1651",
+    "bank_ifsc": "SBIN0041869"
+  },
+  "expected_route": "auto_approve"
 }

@@ -1,43 +1,46 @@
 {
-  "vendor_name": "Kaveri Office Supplies LLP",
-  "vendor_gstin": "27HMCCK9976V1Z8",
-  "buyer_gstin": "27YUZCD4588E1Z4",
-  "invoice_number": "KAV/26-27/612",
-  "invoice_date": "2026-09-18",
-  "due_date": "2026-10-18",
-  "po_number": "PO-2026-0412",
-  "currency": "INR",
-  "line_items": [
-    {
-      "description": "A4 copier paper, 75 gsm (ream)",
-      "hsn_sac": "4802",
-      "quantity": "40",
-      "unit_price": "245.00",
-      "tax_rate": "12",
-      "amount": "9800.00"
-    },
-    {
-      "description": "Gel pens, blue (box of 10)",
-      "hsn_sac": "9608",
-      "quantity": "25",
-      "unit_price": "120.00",
-      "tax_rate": "18",
-      "amount": "3000.00"
-    },
-    {
-      "description": "Box files, foolscap",
-      "hsn_sac": "4820",
-      "quantity": "30",
-      "unit_price": "85.50",
-      "tax_rate": "18",
-      "amount": "2565.00"
-    }
-  ],
-  "subtotal": "15365.00",
-  "cgst": "1088.85",
-  "sgst": "1088.85",
-  "igst": "0",
-  "total": "17542.70",
-  "bank_account_last4": "0517",
-  "bank_ifsc": "HDFC0106756"
+  "expected_extraction": {
+    "vendor_name": "Kaveri Office Supplies LLP",
+    "vendor_gstin": "27KAVCO4821K1ZJ",
+    "buyer_gstin": "27DEMCT1001D1ZJ",
+    "invoice_number": "KAV/26-27/333",
+    "invoice_date": "2026-09-27",
+    "due_date": "2026-10-27",
+    "po_number": "PO-2026-0412",
+    "currency": "INR",
+    "line_items": [
+      {
+        "description": "A4 copier paper, 75 gsm (ream)",
+        "hsn_sac": "4802",
+        "quantity": "40",
+        "unit_price": "245.00",
+        "tax_rate": "12",
+        "amount": "9800.00"
+      },
+      {
+        "description": "Gel pens, blue (box of 10)",
+        "hsn_sac": "9608",
+        "quantity": "25",
+        "unit_price": "120.00",
+        "tax_rate": "18",
+        "amount": "3000.00"
+      },
+      {
+        "description": "Box files, foolscap",
+        "hsn_sac": "4820",
+        "quantity": "30",
+        "unit_price": "85.50",
+        "tax_rate": "18",
+        "amount": "2565.00"
+      }
+    ],
+    "subtotal": "15365.00",
+    "cgst": "1088.85",
+    "sgst": "1088.85",
+    "igst": "0",
+    "total": "17542.70",
+    "bank_account_last4": "0517",
+    "bank_ifsc": "HDFC0106756"
+  },
+  "expected_route": "auto_approve"
 }
