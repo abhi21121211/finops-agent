@@ -1,13 +1,13 @@
 name: Eval
 
 # PRs run the 20-case smoke set and fail on a >2-point field-accuracy drop or any false
-# auto-approval. The nightly schedule runs all 100 cases. Not on pushes to main: Render
+# auto-approval. A weekly schedule runs all 100 cases. Not on pushes to main: Render
 # deploys only when every check on the commit passes, so an LLM quota hiccup in an eval
 # would block deploys (it did once). Deploys depend on CI; evals gate pull requests.
 on:
   pull_request:
   schedule:
-    - cron: "30 20 * * *"  # 02:00 IST
+    - cron: "30 20 * * 0"  # weekly, Monday 02:00 IST (saves free LLM quota)
   workflow_dispatch:
     inputs:
       mode:
