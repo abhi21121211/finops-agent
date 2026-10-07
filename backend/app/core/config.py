@@ -1,9 +1,11 @@
+import json
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Any, Literal
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 # .env lives at the repo root, one level above backend/. FINOPS_ENV_FILE layers another
 # file on top (e.g. .env.cloud to run locally against the real cloud services).
@@ -46,7 +48,21 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_ttl_minutes: int = 60 * 12
 
-    cors_origins: list[str] = ["http://localhost:3000"]
+    # JSON list, a comma-separated list, or one URL. Empty means the default, so a
+    # blank value in a hosting dashboard can't stop the app from starting.
+    cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:3000"]
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def _parse_origins(cls, v: Any) -> Any:
+        if not isinstance(v, str):
+            return v
+        v = v.strip()
+        if not v:
+            return ["http://localhost:3000"]
+        if v.startswith("["):
+            return json.loads(v)
+        return [o.strip().strip("\"'") for o in v.split(",") if o.strip()]
 
     # Seconds between the worker's queue polls. Each poll is a few Redis commands, and
     # Upstash's free tier allows 500k commands a month, so production uses ~5.
