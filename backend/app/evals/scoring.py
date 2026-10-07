@@ -234,6 +234,13 @@ def aggregate(results: list[CaseResult]) -> dict:
 def gate(metrics: dict, baseline: dict | None, max_drop_points: float = 2.0) -> list[str]:
     """Reasons the run fails the CI gate (empty list = pass)."""
     failures = []
+    if metrics["errors"]:
+        # Reported first and separately: errored cases score zero, so an outage or a bad
+        # key shows up as an accuracy drop. Fix the infrastructure, then judge accuracy.
+        failures.append(
+            f"{metrics['errors']} case(s) errored before scoring (provider/key/infrastructure;"
+            " see the report's 'error' fields)"
+        )
     if metrics["false_auto_approvals"]:
         failures.append(f"{metrics['false_auto_approvals']} false auto-approval(s)")
     if baseline:
