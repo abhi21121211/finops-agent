@@ -6,6 +6,8 @@ import os
 # Must run before app modules create the engine.
 _BASE = os.environ.get("DATABASE_URL", "postgresql+asyncpg://finops:finops@localhost:5433/finops")
 os.environ["DATABASE_URL"] = _BASE.rsplit("/", 1)[0] + "/finops_test"
+# Rate limits get their own tests; elsewhere they would make test order matter.
+os.environ["RATE_LIMITS_ENABLED"] = "false"
 
 import io  # noqa: E402
 import json  # noqa: E402
@@ -41,8 +43,44 @@ class MemoryStorage:
     async def get(self, key: str) -> bytes:
         return self.objects[key][0]
 
+    async def delete(self, key: str) -> None:
+        self.objects.pop(key, None)
+
     def presigned_url(self, key: str, expires_s: int = 900) -> str:
         return f"http://storage.test/{key}"
+
+
+class FakeRedis:
+    """The few Redis commands the rate limiter and demo lock use."""
+
+    def __init__(self, fail: bool = False) -> None:
+        self.data: dict[str, int | str] = {}
+        self.ttls: dict[str, int] = {}
+        self.fail = fail
+
+    def _check(self) -> None:
+        if self.fail:
+            raise ConnectionError("redis down")
+
+    async def incr(self, key: str) -> int:
+        self._check()
+        self.data[key] = int(self.data.get(key, 0)) + 1
+        return self.data[key]
+
+    async def expire(self, key: str, seconds: int) -> None:
+        self.ttls[key] = seconds
+
+    async def ttl(self, key: str) -> int:
+        return self.ttls.get(key, -1)
+
+    async def set(self, key: str, value, nx: bool = False, ex: int | None = None):
+        self._check()
+        if nx and key in self.data:
+            return None
+        self.data[key] = value
+        if ex:
+            self.ttls[key] = ex
+        return True
 
 
 class FakeQueue:
@@ -51,6 +89,7 @@ class FakeQueue:
         self.reprocessed: list[str] = []
         self.resumed: list[tuple[str, dict]] = []
         self.reconciled: list[str] = []
+        self.demo_resets = 0
 
     async def enqueue_invoice(self, invoice_id: str, *, reprocess: bool = False) -> None:
         (self.reprocessed if reprocess else self.enqueued).append(invoice_id)
@@ -60,6 +99,9 @@ class FakeQueue:
 
     async def enqueue_reconcile(self, tenant_id: str) -> None:
         self.reconciled.append(tenant_id)
+
+    async def enqueue_demo_reset(self) -> None:
+        self.demo_resets += 1
 
 
 class FakeLookups:

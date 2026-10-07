@@ -13,6 +13,7 @@ from sqlalchemy.orm import selectinload
 from app.agents.lookups import load_purchase_orders
 from app.core.auth import CurrentUserDep
 from app.core.queue import Queue, get_queue
+from app.core.ratelimit import limited
 from app.db.models import BankTransaction, Invoice, Match, POLine, PurchaseOrder, Vendor
 from app.db.session import get_session
 from app.reconcile.bank_csv import StatementError, parse_statement
@@ -121,7 +122,11 @@ async def create_purchase_order(body: POIn, user: CurrentUserDep, session: Sessi
     return await _po_out(session, user.tenant_id, po)
 
 
-@router.post("/bank-statements", response_model=StatementUploadOut)
+@router.post(
+    "/bank-statements",
+    response_model=StatementUploadOut,
+    dependencies=[Depends(limited("statement"))],
+)
 async def upload_bank_statement(
     user: CurrentUserDep,
     session: SessionDep,

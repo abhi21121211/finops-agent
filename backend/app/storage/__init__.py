@@ -18,6 +18,7 @@ class Storage(Protocol):
     async def ensure_bucket(self) -> None: ...
     async def put(self, key: str, data: bytes, content_type: str) -> None: ...
     async def get(self, key: str) -> bytes: ...
+    async def delete(self, key: str) -> None: ...
     def presigned_url(self, key: str, expires_s: int = 900) -> str: ...
 
 
@@ -62,6 +63,9 @@ class S3Storage:
             return self._client.get_object(Bucket=self.bucket, Key=key)["Body"].read()
 
         return await asyncio.to_thread(_get)
+
+    async def delete(self, key: str) -> None:
+        await asyncio.to_thread(self._client.delete_object, Bucket=self.bucket, Key=key)
 
     def presigned_url(self, key: str, expires_s: int = 900) -> str:
         return self._public.generate_presigned_url(

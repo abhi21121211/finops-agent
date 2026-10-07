@@ -12,6 +12,7 @@ class Queue(Protocol):
     async def enqueue_invoice(self, invoice_id: str, *, reprocess: bool = False) -> None: ...
     async def enqueue_resume(self, invoice_id: str, decision: dict[str, Any]) -> None: ...
     async def enqueue_reconcile(self, tenant_id: str) -> None: ...
+    async def enqueue_demo_reset(self) -> None: ...
 
 
 def redis_settings() -> RedisSettings:
@@ -41,6 +42,9 @@ class ArqQueue:
         # No job id: every refresh recomputes everything, so a second run is harmless,
         # while deduplicating could drop an upload that lands during a running refresh.
         await (await self._get()).enqueue_job("reconcile_tenant", tenant_id)
+
+    async def enqueue_demo_reset(self) -> None:
+        await (await self._get()).enqueue_job("reset_demo_tenant", _job_id="demo-reset")
 
 
 def get_queue() -> Queue:

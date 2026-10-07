@@ -92,6 +92,16 @@ class Settings(BaseSettings):
     # Upstash's free tier allows 500k commands a month, so production uses ~5.
     worker_poll_delay_s: float = 0.5
 
+    # Public-demo protection (app/core/ratelimit.py).
+    rate_limits_enabled: bool = True
+    demo_uploads_per_hour: int = 10  # per visitor; uploads and reprocess (LLM work)
+    demo_statements_per_hour: int = 10  # per visitor
+    demo_logins_per_hour: int = 30  # per visitor
+    demo_daily_llm_budget: int = 150  # all visitors; invoices processed per day
+    demo_daily_reset: bool = False  # wipe + reload the demo tenant daily (on in production)
+    demo_reset_interval_s: int = 24 * 3600
+    demo_samples_dir: str = str(_ROOT / "samples")
+
     max_upload_mb: int = 15
     max_pages: int = 5
 
