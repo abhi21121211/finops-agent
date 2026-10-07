@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -14,13 +15,36 @@ _ENV_FILES = tuple(p for p in (_ROOT / ".env", os.environ.get("FINOPS_ENV_FILE")
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=_ENV_FILES, extra="ignore")
+    # hide_input_in_errors: a bad value (a URL with a password, a key) must never be
+    # echoed into logs by a validation error.
+    model_config = SettingsConfigDict(
+        env_file=_ENV_FILES, extra="ignore", hide_input_in_errors=True
+    )
 
     env: str = "dev"
     log_level: str = "INFO"
 
     database_url: str = "postgresql+asyncpg://finops:finops@localhost:5433/finops"
     redis_url: str = "redis://localhost:6379/0"
+
+    @field_validator("redis_url", mode="before")
+    @classmethod
+    def _parse_redis_url(cls, v: Any) -> Any:
+        """Accept the URL, or a pasted `redis-cli --tls -u redis://...` command (as Upstash
+        shows it). Reject anything else by name, never echoing the value (it has a password)."""
+        if not isinstance(v, str):
+            return v
+        v = v.strip().strip("\"'")
+        found = re.search(r"rediss?://\S+", v)
+        if found:
+            url = found.group(0)
+            if "--tls" in v and url.startswith("redis://"):
+                url = "rediss://" + url[len("redis://") :]
+            return url
+        kind = "an https:// REST URL" if v.startswith("http") else "not a redis:// URL"
+        raise ValueError(
+            f"REDIS_URL is {kind}. Use the TCP URL: rediss://default:<password>@<host>:6379"
+        )
 
     s3_endpoint: str = "http://localhost:9100"
     s3_public_endpoint: str = "http://localhost:9100"
@@ -67,6 +91,16 @@ class Settings(BaseSettings):
     # Seconds between the worker's queue polls. Each poll is a few Redis commands, and
     # Upstash's free tier allows 500k commands a month, so production uses ~5.
     worker_poll_delay_s: float = 0.5
+
+    # Public-demo protection (app/core/ratelimit.py).
+    rate_limits_enabled: bool = True
+    demo_uploads_per_hour: int = 10  # per visitor; uploads and reprocess (LLM work)
+    demo_statements_per_hour: int = 10  # per visitor
+    demo_logins_per_hour: int = 30  # per visitor
+    demo_daily_llm_budget: int = 150  # all visitors; invoices processed per day
+    demo_daily_reset: bool = False  # wipe + reload the demo tenant daily (on in production)
+    demo_reset_interval_s: int = 24 * 3600
+    demo_samples_dir: str = str(_ROOT / "samples")
 
     max_upload_mb: int = 15
     max_pages: int = 5

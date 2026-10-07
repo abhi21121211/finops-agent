@@ -280,6 +280,15 @@ async def reconcile_tenant(ctx: dict[str, Any], tenant_id: str) -> None:
     log.info("payments_refreshed", tenant_id=tenant_id, changed=changed)
 
 
+async def reset_demo_tenant(ctx: dict[str, Any]) -> None:
+    """Daily demo reset (see app/demo.py)."""
+    from app.core.queue import ArqQueue
+    from app.demo import reset_demo
+
+    async with SessionLocal() as session:
+        await reset_demo(session, get_storage(), ArqQueue(), ctx["graph"].checkpointer)
+
+
 async def startup(ctx: dict[str, Any]) -> None:
     configure_logging(get_settings().log_level)
     # `kill -USR1 <pid>` dumps every thread's stack: the first tool for a stuck job.
@@ -294,7 +303,7 @@ async def shutdown(ctx: dict[str, Any]) -> None:
 
 
 class WorkerSettings:
-    functions = [process_invoice, resume_invoice, reconcile_tenant]
+    functions = [process_invoice, resume_invoice, reconcile_tenant, reset_demo_tenant]
     on_startup = startup
     on_shutdown = shutdown
     redis_settings = redis_settings()

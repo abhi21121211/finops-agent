@@ -1,5 +1,4 @@
 import asyncio
-import hashlib
 import json
 import uuid
 from collections.abc import AsyncIterator
@@ -15,15 +14,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.agents.nodes.human_review import apply_field_edits
-from app.agents.tools.documents import SUPPORTED_TYPES, sniff_content_type
 from app.core.auth import CurrentUserDep
 from app.core.config import get_settings
 from app.core.events import channel
 from app.core.queue import Queue, get_queue
+from app.core.ratelimit import limited
+from app.core.redis import get_redis
 from app.db.models import (
     Invoice,
-    InvoiceFile,
-    InvoiceSource,
     InvoiceStatus,
     Match,
     ReviewAction,
@@ -31,6 +29,7 @@ from app.db.models import (
     User,
 )
 from app.db.session import get_session
+from app.ingest import UnsupportedFile, create_invoice
 from app.schemas.invoice import (
     InvoiceDetail,
     InvoiceList,
@@ -39,7 +38,7 @@ from app.schemas.invoice import (
     ReviewIn,
     ReviewOut,
 )
-from app.storage import Storage, get_storage, tenant_key
+from app.storage import Storage, get_storage
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
@@ -49,16 +48,6 @@ QueueDep = Annotated[Queue, Depends(get_queue)]
 
 _EXT = {"application/pdf": "pdf", "image/png": "png", "image/jpeg": "jpg"}
 _FINAL = {InvoiceStatus.approved, InvoiceStatus.rejected, InvoiceStatus.failed}
-_redis: Redis | None = None
-
-
-def get_redis() -> Redis:
-    global _redis
-    if _redis is None:
-        _redis = Redis.from_url(get_settings().redis_url)
-    return _redis
-
-
 RedisDep = Annotated[Redis, Depends(get_redis)]
 
 
@@ -124,7 +113,12 @@ async def _detail(session: AsyncSession, inv: Invoice, storage: Storage) -> Invo
     )
 
 
-@router.post("", response_model=InvoiceDetail, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=InvoiceDetail,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(limited("invoice"))],
+)
 async def upload_invoice(
     user: CurrentUserDep,
     session: SessionDep,
@@ -138,32 +132,12 @@ async def upload_invoice(
         raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "File too large")
     if not data:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Empty file")
-    # Trust the bytes, not the client's Content-Type header.
-    ctype = sniff_content_type(data)
-    if ctype not in SUPPORTED_TYPES:
-        raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "Upload a PDF, PNG or JPG")
-
-    invoice_id = uuid.uuid4()
-    key = tenant_key(user.tenant_id, "invoices", invoice_id, f"original.{_EXT[ctype]}")
-    await storage.put(key, data, ctype)
-
-    inv = Invoice(
-        id=invoice_id,
-        tenant_id=user.tenant_id,
-        status=InvoiceStatus.received,
-        source=InvoiceSource.upload,
-        original_filename=(file.filename or "upload")[:500],
-        events=[],
-    )
-    inv.files = [
-        InvoiceFile(
-            s3_key=key, content_type=ctype, page_no=0, sha256=hashlib.sha256(data).hexdigest()
+    try:
+        invoice_id = await create_invoice(
+            session, storage, queue, user.tenant_id, data, file.filename or "upload"
         )
-    ]
-    session.add(inv)
-    await session.commit()
-
-    await queue.enqueue_invoice(str(invoice_id))
+    except UnsupportedFile as e:
+        raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, str(e)) from e
     return await _detail(session, await _load(session, user.tenant_id, invoice_id), storage)
 
 
@@ -267,7 +241,11 @@ async def review_invoice(
     return await _detail(session, await _load(session, user.tenant_id, invoice_id), storage)
 
 
-@router.post("/{invoice_id}/reprocess", response_model=InvoiceDetail)
+@router.post(
+    "/{invoice_id}/reprocess",
+    response_model=InvoiceDetail,
+    dependencies=[Depends(limited("invoice"))],  # re-runs the LLM, same budget as uploads
+)
 async def reprocess_invoice(
     invoice_id: uuid.UUID,
     user: CurrentUserDep,

@@ -6,7 +6,7 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,8 +19,13 @@ export default function LoginPage() {
     try {
       await api.demoLogin();
       router.replace("/invoices");
-    } catch {
-      setError("Could not reach the backend. Is it running on port 8000?");
+    } catch (e) {
+      // A limit message from the API is worth showing as is; anything else is reachability.
+      setError(
+        e instanceof ApiError && e.status === 429
+          ? e.message
+          : "Could not reach the server. If it was asleep, it can take a minute to wake: try again shortly.",
+      );
       setLoading(false);
     }
   }

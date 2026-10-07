@@ -1,4 +1,11 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+/** Base URL of the backend API. Accepts the host with or without `/api/v1` and a trailing
+ * slash, so a slightly-off hosting setting doesn't silently break every request. */
+export function normalizeApiUrl(raw: string | undefined): string {
+  const base = (raw || "http://localhost:8000").trim().replace(/\/+$/, "");
+  return base.endsWith("/api/v1") ? base : `${base}/api/v1`;
+}
+
+export const API_URL = normalizeApiUrl(process.env.NEXT_PUBLIC_API_URL);
 
 const TOKEN_KEY = "finops.token";
 

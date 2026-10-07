@@ -4,6 +4,12 @@ An autonomous accounts-payable agent for Indian small businesses and CA firms: i
 vendor invoices, extracts and validates them, reconciles them against purchase orders and
 bank statements, and asks a human only when it is unsure.
 
+**Live demo: [fin-ops-v1.vercel.app](https://fin-ops-v1.vercel.app)**. Click *Try the
+demo*. It runs on free tiers: the first load after a quiet spell can take about a minute
+while the server wakes. The demo company is reset daily with six sample invoices (two
+auto-approved, four waiting for review for different reasons). Uploads are rate-limited so
+the free AI quota lasts.
+
 > Status: **M4, Evals and deployment.** The agent extracts, validates, reconciles and routes
 > invoices, and is measured on a 100-invoice synthetic eval set with an eval-gated CI.
 > See the [project spec](docs/FinOps_Agent_Project_Spec.md) for the roadmap.
