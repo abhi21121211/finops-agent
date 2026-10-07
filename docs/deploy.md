@@ -75,7 +75,8 @@ The free tier allows 500,000 commands a month. The worker polls every 5 seconds
    `https://finops-agent-api.onrender.com/health` returns `{"status":"ok"}`. Your URL may
    end differently; Render shows it at the top of the service page.
 
-After that, Render deploys every push to `main` once GitHub's CI checks pass.
+After that, Render deploys pushes to `main` once GitHub's CI checks pass, but only
+when files that go into the image changed (`buildFilter` in `render.yaml`).
 
 ## 4. Vercel: web app
 
@@ -84,11 +85,14 @@ After that, Render deploys every push to `main` once GitHub's CI checks pass.
    `NEXT_PUBLIC_API_URL=https://finops-agent-api.onrender.com/api/v1`, using your Render URL.
 3. Click Deploy. Then set `CORS_ORIGINS` on Render to `["https://<your-app>.vercel.app"]`.
 
+`frontend/vercel.json` turns off preview builds for the `abhi-dev` branch and skips builds
+when nothing under `frontend/` changed, so routine merges don't use build minutes.
+
 ## 5. GitHub: the eval gate
 
 In the repository's *Settings → Secrets and variables → Actions*, add `GEMINI_API_KEY`
 (and optionally `MISTRAL_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY`). Pull requests
-then run the 20-case eval gate, and `main` runs all 100 cases nightly.
+then run the 20-case eval gate, and all 100 cases run weekly (or on demand from the Actions tab).
 
 ## Free-tier behaviour to know before a demo
 

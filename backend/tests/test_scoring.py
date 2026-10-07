@@ -51,7 +51,13 @@ def test_gate_ignores_deferred_false_approvals_but_not_others():
     assert gate(real, None) == ["1 false auto-approval(s)"]
 
 
+def test_gate_names_errored_cases_separately():
+    m = {"errors": 12, "false_auto_approvals": 0, "field_accuracy": 0.88}
+    failures = gate(m, {"field_accuracy": 0.999})
+    assert failures[0].startswith("12 case(s) errored")
+
+
 def test_gate_accuracy_drop():
-    m = {"false_auto_approvals": 0, "field_accuracy": 0.90}
+    m = {"errors": 0, "false_auto_approvals": 0, "field_accuracy": 0.90}
     assert gate(m, {"field_accuracy": 0.915}) == []
     assert "below baseline" in gate(m, {"field_accuracy": 0.93})[0]

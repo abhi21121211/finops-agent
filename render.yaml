@@ -10,6 +10,14 @@ services:
     dockerContext: .
     healthCheckPath: /health
     autoDeployTrigger: checksPass  # deploy main only after GitHub CI passes
+    # Rebuild only when something in the image changed (each build uses build minutes).
+    buildFilter:
+      paths:
+        - backend/**
+        - deploy/render/**
+        - samples/**
+      ignoredPaths:
+        - backend/tests/**
     envVars:
       - key: LLM_MODE
         value: direct
