@@ -41,11 +41,16 @@ TIERS: dict[str, tuple[Deployment, ...]] = {
         Deployment("gemini", "gemini-flash-latest", GEMINI, "GEMINI_API_KEY"),
         Deployment("mistral", "mistral-medium-latest", MISTRAL, "MISTRAL_API_KEY"),
         Deployment("openrouter", "google/gemma-4-31b-it:free", OPENROUTER, "OPENROUTER_API_KEY"),
+        Deployment(
+            "openrouter", "google/gemma-4-26b-a4b-it:free", OPENROUTER, "OPENROUTER_API_KEY"
+        ),
     ),
     "powerful": (
         Deployment("gemini", "gemini-flash-latest", GEMINI, "GEMINI_API_KEY"),
         Deployment("mistral", "mistral-medium-latest", MISTRAL, "MISTRAL_API_KEY"),
-        Deployment("openrouter", "qwen/qwen3.8-27b:free", OPENROUTER, "OPENROUTER_API_KEY"),
+        Deployment(
+            "openrouter", "nvidia/nemotron-3-super-120b-a12b:free", OPENROUTER, "OPENROUTER_API_KEY"
+        ),
     ),
     "normal": (
         Deployment("groq", "openai/gpt-oss-20b", GROQ, "GROQ_API_KEY"),

@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, abhi-dev]  # abhi-dev: lint, tests and build only; no LLM calls, no deploy
 
 concurrency:
   group: ci-${{ github.ref }}

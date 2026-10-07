@@ -12,20 +12,12 @@
 #
 
 model_list:
+  # qwen/qwen3.8-27b:free was retired by OpenRouter (2026-10) and 404'd. LiteLLM does not
+  # fall back on 404, so a retired model breaks its whole tier; check with
+  # `make check-cloud` or the OpenRouter /models list when a tier starts failing.
   # ───────────────────────── POWERFUL tier ─────────────────────────
   # Use for: Nivesh AI / Money Manegment transaction parsing & reasoning,
   # Project PA script generation, TradeSense LLM reasoning, RoomLoop's "Ted".
-  - model_name: powerful
-    litellm_params:
-      model: openrouter/qwen/qwen3.8-27b:free
-      api_key: os.environ/OPENROUTER_API_KEY
-    model_info:
-      router_tier: powerful
-      provider_label: OpenRouter (Qwen 3.8 27B free)
-  # DeepSeek v4 flash free was retired by OpenRouter (~2026-09): it now 404s
-  # ("unavailable for free"), and LiteLLM doesn't fall back on 404, so it
-  # broke the whole powerful tier. Replaced with Qwen above.
-
   - model_name: powerful
     litellm_params:
       model: openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
@@ -134,6 +126,14 @@ model_list:
     model_info:
       router_tier: vision
       provider_label: OpenRouter (Gemma 4 31B free, multimodal)
+
+  - model_name: vision
+    litellm_params:
+      model: openrouter/google/gemma-4-26b-a4b-it:free
+      api_key: os.environ/OPENROUTER_API_KEY
+    model_info:
+      router_tier: vision
+      provider_label: OpenRouter (Gemma 4 26B free, multimodal)
 
   # Separate Gemini quota from Flash; weaker but keeps vision alive when the
   # others are rate-limited at the same moment.

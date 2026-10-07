@@ -1,4 +1,4 @@
-.PHONY: up down infra logs test lint migration samples dataset eval eval-smoke eval-oracle backend-dev worker-dev frontend-dev
+.PHONY: up down infra logs test lint migration samples check-cloud cloud-local dataset eval eval-smoke eval-oracle backend-dev worker-dev frontend-dev
 
 up:            ## Start everything
 	docker compose up -d --build
@@ -23,6 +23,14 @@ migration:     ## make migration m="message"
 
 samples:       ## Generate synthetic sample invoices into samples/
 	cd backend && uv run python ../scripts/make_sample_invoices.py
+
+check-cloud:   ## Test every real cloud connection in .env.cloud (no secrets printed)
+	cd backend && uv run python ../scripts/check_connections.py --env ../.env.cloud
+
+cloud-local:   ## Run API + worker locally against the cloud services in .env.cloud
+	cd backend && export FINOPS_ENV_FILE=../.env.cloud && uv run alembic upgrade head \
+	  && uv run python -m app.seed \
+	  && (uv run arq app.worker.WorkerSettings & uv run uvicorn app.main:app --port 8000)
 
 dataset:       ## Generate the 100-case eval dataset into evals/dataset/
 	cd backend && uv run python ../scripts/generate_dataset.py
