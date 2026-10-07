@@ -8,6 +8,7 @@ record model, tokens, latency and cost for every call.
 
 import base64
 import json
+import os
 import time
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -93,7 +94,14 @@ def default_client():
     cooldowns) are shared across calls."""
     s = get_settings()
     if s.llm_mode == "direct":
-        return DirectClient(timeout_s=s.llm_timeout_s)
+        keys = {
+            "GEMINI_API_KEY": s.gemini_api_key,
+            "MISTRAL_API_KEY": s.mistral_api_key,
+            "OPENROUTER_API_KEY": s.openrouter_api_key,
+            "GROQ_API_KEY": s.groq_api_key,
+        }
+        env = {**os.environ, **{k: v for k, v in keys.items() if v}}
+        return DirectClient(timeout_s=s.llm_timeout_s, env=env)
     return AsyncOpenAI(
         base_url=s.llm_router_url,
         api_key=s.llm_router_key or "no-key",

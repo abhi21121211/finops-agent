@@ -1,15 +1,18 @@
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# .env lives at the repo root, one level above backend/
-_ENV_FILE = Path(__file__).resolve().parents[3] / ".env"
+# .env lives at the repo root, one level above backend/. FINOPS_ENV_FILE layers another
+# file on top (e.g. .env.cloud to run locally against the real cloud services).
+_ROOT = Path(__file__).resolve().parents[3]
+_ENV_FILES = tuple(p for p in (_ROOT / ".env", os.environ.get("FINOPS_ENV_FILE")) if p)
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=_ENV_FILE, extra="ignore")
+    model_config = SettingsConfigDict(env_file=_ENV_FILES, extra="ignore")
 
     env: str = "dev"
     log_level: str = "INFO"
@@ -28,6 +31,11 @@ class Settings(BaseSettings):
     # "direct": call free providers from the app with built-in failover (small hosts).
     llm_mode: Literal["proxy", "direct"] = "proxy"
     llm_router_url: str = "http://localhost:4000/v1"
+    # Provider keys for direct mode (also read from the process environment).
+    gemini_api_key: str = ""
+    mistral_api_key: str = ""
+    openrouter_api_key: str = ""
+    groq_api_key: str = ""
     llm_router_key: str = ""
     llm_timeout_s: float = 120.0
     # Prompt version for extraction; a name in agents/prompts/ or a path to a .md file.
