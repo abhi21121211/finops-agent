@@ -141,7 +141,7 @@ async def check_postgres(env: dict) -> None:
             user=unquote(u.username or ""),
             password=unquote(u.password or ""),
             database=(u.path or "/postgres")[1:],
-            ssl=ssl.create_default_context(),
+            ssl="require",  # as the app: encrypted; Supabase uses its own CA
             timeout=15,
             statement_cache_size=0,
         )
@@ -155,7 +155,7 @@ async def check_postgres(env: dict) -> None:
         return
     except Exception as e:
         hint = "Check host/port from Supabase → Connect → Session pooler."
-        if "Tenant or user not found" in str(e):
+        if "not found" in str(e).lower() and "tenant" in str(e).lower():
             hint = "User must be postgres.<project-ref> and the pooler host must match your region."
         fail("Connect (asyncpg)", short(e), hint)
         return
