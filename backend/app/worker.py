@@ -298,6 +298,7 @@ class WorkerSettings:
     on_startup = startup
     on_shutdown = shutdown
     redis_settings = redis_settings()
+    poll_delay = get_settings().worker_poll_delay_s
     max_jobs = 4
     max_tries = MAX_TRIES
     job_timeout = 600

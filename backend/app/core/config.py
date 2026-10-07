@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -23,6 +24,9 @@ class Settings(BaseSettings):
     s3_bucket: str = "invoices"
     s3_region: str = "us-east-1"
 
+    # "proxy": a LiteLLM router at llm_router_url (local dev, CI).
+    # "direct": call free providers from the app with built-in failover (small hosts).
+    llm_mode: Literal["proxy", "direct"] = "proxy"
     llm_router_url: str = "http://localhost:4000/v1"
     llm_router_key: str = ""
     llm_timeout_s: float = 120.0
@@ -35,6 +39,10 @@ class Settings(BaseSettings):
     jwt_ttl_minutes: int = 60 * 12
 
     cors_origins: list[str] = ["http://localhost:3000"]
+
+    # Seconds between the worker's queue polls. Each poll is a few Redis commands, and
+    # Upstash's free tier allows 500k commands a month, so production uses ~5.
+    worker_poll_delay_s: float = 0.5
 
     max_upload_mb: int = 15
     max_pages: int = 5

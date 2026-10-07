@@ -12,6 +12,7 @@ import time
 from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import StrEnum
+from functools import lru_cache
 from typing import Any
 
 from openai import AsyncOpenAI
@@ -19,6 +20,7 @@ from pydantic import BaseModel, ValidationError
 
 from app.core.config import get_settings
 from app.core.logging import log
+from app.llm.direct import DirectClient
 from app.llm.pricing import actual_cost_usd, list_price_usd
 
 
@@ -85,15 +87,24 @@ def _extract_json(text: str) -> str:
     return text[start : end + 1] if start != -1 and end > start else text
 
 
+@lru_cache
+def default_client():
+    """One client per process, so connection pools (and, in direct mode, provider
+    cooldowns) are shared across calls."""
+    s = get_settings()
+    if s.llm_mode == "direct":
+        return DirectClient(timeout_s=s.llm_timeout_s)
+    return AsyncOpenAI(
+        base_url=s.llm_router_url,
+        api_key=s.llm_router_key or "no-key",
+        timeout=s.llm_timeout_s,
+        max_retries=1,
+    )
+
+
 class LLMRouter:
-    def __init__(self, client: AsyncOpenAI | None = None) -> None:
-        s = get_settings()
-        self._client = client or AsyncOpenAI(
-            base_url=s.llm_router_url,
-            api_key=s.llm_router_key or "no-key",
-            timeout=s.llm_timeout_s,
-            max_retries=1,
-        )
+    def __init__(self, client=None) -> None:
+        self._client = client or default_client()
 
     async def structured[T: BaseModel](
         self,

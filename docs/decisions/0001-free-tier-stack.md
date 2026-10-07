@@ -17,7 +17,7 @@ should run on free tiers while keeping the same architecture and the option to s
 | LangChain chat models | The `openai` SDK pointed at the proxy | LangChain adds nothing here; response headers give the real model and cost |
 | AWS S3 (MinIO locally) | SeaweedFS locally (MinIO no longer publishes free images); Supabase Storage in production | Any S3-compatible store; only endpoint and keys change |
 | Strict JSON schema output | JSON mode + Pydantic validation + one correction round | Not every free provider supports `json_schema`; JSON mode works across the pool |
-| EC2, Secrets Manager, CloudWatch | Decided at M4 (Hugging Face Spaces or an always-free VM, GitHub secrets) | Docker Compose runs anywhere |
+| EC2, Secrets Manager, CloudWatch | Render free web service, platform secrets (ADR 0004) | Docker Compose runs anywhere |
 
 Cost tracking: free calls cost $0, so every call also records a **list-price equivalent**
 (from LiteLLM's `x-litellm-response-cost`, or `llm/pricing.py`). Cost dashboards and resume

@@ -1,101 +1,117 @@
 # Deploying FinOps Agent for free
 
-Everything here runs on free tiers. Total cost: ₹0. Expect about 45 minutes the first time.
+Everything here runs on free tiers. **None of them needs a credit card.** Expect about
+45 minutes the first time.
 
 | Piece | Service (free tier) | What it runs |
 |---|---|---|
 | Web app | **Vercel** Hobby | `frontend/` (Next.js) |
-| API, worker, LLM router | **Hugging Face Spaces**, Docker, CPU basic | `deploy/hf-space/` image |
+| API + job worker | **Render** free web service (512 MB) | `deploy/render/` image, via `render.yaml` |
 | Postgres + pgvector | **Supabase** Free | data, workflow checkpoints |
 | Invoice files | **Supabase Storage** (S3 API) | uploads, page images |
 | Job queue | **Upstash Redis** Free | arq jobs, live event pub/sub |
-| LLMs | Gemini, Mistral, OpenRouter, Groq free tiers via LiteLLM | `infra/litellm/config.yaml` |
+| LLMs | Gemini, Mistral, OpenRouter, Groq free tiers | called directly by the app (`LLM_MODE=direct`) |
 
 ```
-Browser ──▶ Vercel (Next.js) ──HTTPS──▶ HF Space :7860
+Browser ──▶ Vercel (Next.js) ──HTTPS──▶ Render web service
                                          ├─ uvicorn (API)
-                                         ├─ arq worker
-                                         └─ LiteLLM :4000 ──▶ free LLM providers
+                                         └─ arq worker ──▶ free LLM providers (with failover)
                                     Supabase Postgres · Supabase Storage · Upstash Redis
 ```
 
+Measured locally under Render's limits (512 MB, half a CPU), processing three invoices at
+once: 284 MB peak. That is why there is no LLM proxy in production: LiteLLM alone needed
+370 MB. See [ADR 0004](decisions/0004-render-instead-of-hugging-face.md).
+
 ## 1. Supabase: database and file storage
 
-1. Create a project at [supabase.com](https://supabase.com). Pick the Mumbai region (`ap-south-1`).
-2. **Database URL.** Go to *Connect → Session pooler* and copy the URI. Turn it into the
-   app's format:
+1. Create a project at [supabase.com](https://supabase.com). Pick the Mumbai region.
+2. **Database URL.** Click **Connect** at the top, then **Session pooler**, and copy the URI.
+   Convert it to the app's format by changing the start to `postgresql+asyncpg://` and
+   adding `?ssl=require` at the end:
    `postgresql+asyncpg://postgres.<ref>:<password>@aws-0-ap-south-1.pooler.supabase.com:5432/postgres?ssl=require`.
-   Use the **session** pooler (port 5432), not the transaction pooler. The transaction
-   pooler breaks prepared statements.
-3. Enable pgvector: *Database → Extensions → vector*.
-4. **Storage.** Create a **private** bucket named `invoices`. Then go to
-   *Project Settings → Storage → S3 Connection* and create an access key. Note the
-   endpoint (`https://<ref>.supabase.co/storage/v1/s3`), the region, the key id and the secret.
+   Use the **Session** pooler (port 5432), not the Transaction pooler.
+3. Enable pgvector: *Database → Extensions →* search `vector` *→ enable*.
+4. **Storage.**
+   - Create a **private** bucket named `invoices`.
+   - Then go to *Project Settings → Storage → S3 Connection*, enable it, and create an
+     access key.
+   - Note the endpoint (`https://<ref>.storage.supabase.co/storage/v1/s3`), the region,
+     the access key ID and the secret.
+
+> You don't need the Supabase "anon"/"publishable" key or project URL for this app. Those
+> are for browser apps that talk to Supabase directly. Ours goes through its own API.
 
 ## 2. Upstash: Redis
 
-Create a Redis database at [upstash.com](https://upstash.com) in the region nearest
-Mumbai. Copy the `rediss://default:<password>@<host>:6379` URL. It must start with
-`rediss`, which means TLS.
+Create a Redis database at [upstash.com](https://upstash.com) in the region closest to Mumbai.
 
-## 3. Hugging Face Space: API, worker and router
+On the database page, open the **TCP** tab (not REST) and copy the URL that starts with
+`rediss://default:...@...upstash.io:6379`. The app needs this Redis protocol URL. The
+`UPSTASH_REDIS_REST_URL`/`TOKEN` pair is a different, HTTP-based API.
 
-1. Create a Space at [huggingface.co/new-space](https://huggingface.co/new-space). Choose
-   **Docker → Blank** and **CPU basic (free)**, and name it e.g. `finops-agent-api`.
-2. Add these under *Settings → Variables and secrets*. Every one is a **secret** except
-   `S3_REGION` and `CORS_ORIGINS`.
+The free tier allows 500,000 commands a month. The worker polls every 5 seconds
+(`WORKER_POLL_DELAY_S=5`) and Render sleeps when idle, so normal demo use stays far below that.
+
+## 3. Render: API and worker
+
+1. Sign up at [render.com](https://render.com) with GitHub. No card is needed.
+2. Click **New → Blueprint**, pick the `finops-agent` repository and click **Apply**.
+   `render.yaml` creates the `finops-agent-api` service on the free plan.
+3. Render asks for the values marked `sync: false`. Fill in:
 
    | Name | Value |
    |---|---|
    | `DATABASE_URL` | from step 1.2 |
-   | `REDIS_URL` | from step 2 |
-   | `S3_ENDPOINT`, `S3_PUBLIC_ENDPOINT` | `https://<ref>.supabase.co/storage/v1/s3` (both) |
+   | `REDIS_URL` | the `rediss://` URL from step 2 |
+   | `S3_ENDPOINT`, `S3_PUBLIC_ENDPOINT` | the Supabase S3 endpoint (the same value in both) |
+   | `S3_REGION` | the region shown on the Supabase S3 page (e.g. `ap-south-1`) |
    | `S3_ACCESS_KEY`, `S3_SECRET_KEY` | from step 1.4 |
-   | `S3_BUCKET` | `invoices` |
-   | `S3_REGION` | e.g. `ap-south-1` |
-   | `JWT_SECRET` | a long random string (`python -c "import secrets;print(secrets.token_urlsafe(48))"`) |
-   | `LITELLM_MASTER_KEY` | another long random string |
-   | `GEMINI_API_KEY`, `MISTRAL_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY` | your free-tier keys (any subset works) |
-   | `CORS_ORIGINS` | `["https://<your-app>.vercel.app"]` |
+   | `CORS_ORIGINS` | `["https://<your-app>.vercel.app"]` (set after step 4; use `["*"]` until then) |
+   | `GEMINI_API_KEY`, `MISTRAL_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY` | your free-tier keys (any subset works; Gemini alone is enough) |
 
-3. Create a Hugging Face **access token** with *write* permission (*Settings → Access Tokens*).
+   `JWT_SECRET` is generated for you.
+4. The first deploy takes about 5 minutes. When it's done,
+   `https://finops-agent-api.onrender.com/health` returns `{"status":"ok"}`. Your URL may
+   end differently; Render shows it at the top of the service page.
 
-## 4. GitHub: CI, eval gate and backend deploys
+After that, Render deploys every push to `main` once GitHub's CI checks pass.
 
-In the repository's *Settings → Secrets and variables → Actions*:
+## 4. Vercel: web app
 
-- **Secrets:** `HF_TOKEN` (from step 3.3), plus `GEMINI_API_KEY`, `MISTRAL_API_KEY`,
-  `OPENROUTER_API_KEY` and `GROQ_API_KEY` for the eval gate.
-- **Variables:** `HF_SPACE` = `<hf-username>/finops-agent-api`.
-
-Every push to `main` that passes CI now deploys the backend (`.github/workflows/deploy.yml`).
-To deploy the first time without pushing, run *Actions → Deploy backend → Run workflow*.
-The Space's build log shows progress. The API is live when
-`https://<hf-username>-finops-agent-api.hf.space/health` returns `{"status":"ok"}`.
-
-## 5. Vercel: web app
-
-1. Go to *Add New → Project*, import the GitHub repository and set **Root Directory** to `frontend`.
+1. Go to *Add New → Project*, import `finops-agent` and set **Root Directory** to `frontend`.
 2. Add the environment variable
-   `NEXT_PUBLIC_API_URL=https://<hf-username>-finops-agent-api.hf.space/api/v1`.
-3. Deploy. If the final `*.vercel.app` URL differs from the one in `CORS_ORIGINS`, update
-   that Space variable.
+   `NEXT_PUBLIC_API_URL=https://finops-agent-api.onrender.com/api/v1`, using your Render URL.
+3. Click Deploy. Then set `CORS_ORIGINS` on Render to `["https://<your-app>.vercel.app"]`.
+
+## 5. GitHub: the eval gate
+
+In the repository's *Settings → Secrets and variables → Actions*, add `GEMINI_API_KEY`
+(and optionally `MISTRAL_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY`). Pull requests
+then run the 20-case eval gate, and `main` runs all 100 cases nightly.
 
 ## Free-tier behaviour to know before a demo
 
-- **The Space sleeps** after about 48 h without traffic. The first request then takes a
-  minute or two while it boots. Open the app before an interview.
+- **Render sleeps** after 15 minutes without traffic. The first request then takes about a
+  minute while it wakes. Open the app a couple of minutes before a demo.
 - **The Supabase project pauses** after a week of inactivity. Resume it from the
   dashboard; the data is kept.
-- **The LLM free tiers have daily quotas.** The router fails over between providers, and
-  the worker retries rate-limited jobs with backoff. Under heavy use an invoice can take
-  minutes, or end up `failed` with a "Reprocess" option.
-- **Logs:** the Space's *Logs* tab shows the structured JSON logs from the API and the worker.
+- **The LLM free tiers have daily quotas.** The app fails over between providers, and the
+  worker retries rate-limited jobs with backoff. Under heavy use, an invoice can take
+  minutes or end up `failed` with a "Reprocess" button.
+- **Render's free bandwidth is 5 GB a month.** Invoice images are served straight from
+  Supabase Storage, not through Render, so this is ample.
+- **Logs** are in the Render service's *Logs* tab (structured JSON from the API and worker).
+
+## Never paste secrets into chat or commit them
+
+`.env` is gitignored. Keys belong in Render, Vercel and GitHub settings only. If a key has
+been shared anywhere public, rotate it in the provider's dashboard.
 
 ## Running the full stack locally instead
 
 ```bash
-cp .env.example .env    # set LLM_ROUTER_KEY, or use the bundled router below
+cp .env.example .env
 docker compose up -d --build
 docker compose --profile router up -d   # optional: LiteLLM on :4001 (provider keys + LITELLM_MASTER_KEY in .env)
 ```

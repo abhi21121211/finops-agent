@@ -135,9 +135,10 @@ make eval          # all 100 cases; records an eval_runs row and a JSON report
 
 ## Deployment
 
-Free tiers only: Vercel (web), a Hugging Face Docker Space (API, worker and LLM router),
-Supabase (Postgres and storage) and Upstash (Redis). See **[docs/deploy.md](docs/deploy.md)**.
-CI deploys the backend on every green push to `main`.
+Free tiers only, with no credit card needed: Vercel (web), Render (API and worker in 512 MB),
+Supabase (Postgres and storage) and Upstash (Redis). In production the app calls the free
+LLM providers directly with failover (`LLM_MODE=direct`), because a proxy didn't fit in
+512 MB. See **[docs/deploy.md](docs/deploy.md)**. Render deploys `main` after CI passes.
 
 ## Tests
 
@@ -170,4 +171,5 @@ docs/           spec, architecture decision records
 
 - [ADR 0001: Free-tier stack](docs/decisions/0001-free-tier-stack.md)
 - [ADR 0002: What reconciliation blocks, and how payments are matched](docs/decisions/0002-reconciliation-routing.md)
-- [ADR 0003: Free deployment](docs/decisions/0003-free-deployment.md)
+- [ADR 0003: Free deployment on Hugging Face (superseded)](docs/decisions/0003-free-deployment.md)
+- [ADR 0004: Render instead of Hugging Face; LLM calls without a proxy](docs/decisions/0004-render-instead-of-hugging-face.md)

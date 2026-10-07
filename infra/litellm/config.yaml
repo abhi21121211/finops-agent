@@ -2,7 +2,8 @@
 #
 # Mirrors the developer's local router: three tiers, each a pool of FREE deployments
 # that LiteLLM load-balances and fails over between. API keys come only from environment
-# variables (GitHub Actions secrets / Hugging Face Space secrets); none are stored here.
+# variables (GitHub Actions secrets in CI); none are stored here. Production calls
+# providers directly instead (LLM_MODE=direct, backend/app/llm/direct.py).
 # A deployment whose key is missing just fails and is cooled down.
 #
 #   vision   – multimodal, invoice extraction

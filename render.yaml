@@ -1,0 +1,45 @@
+# Render Blueprint: New → Blueprint → pick this repo. Values marked sync: false are
+# prompted for once in the dashboard (see docs/deploy.md); nothing secret lives here.
+services:
+  - type: web
+    name: finops-agent-api
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./deploy/render/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass  # deploy main only after GitHub CI passes
+    envVars:
+      - key: LLM_MODE
+        value: direct
+      - key: WORKER_POLL_DELAY_S
+        value: "5"
+      - key: S3_BUCKET
+        value: invoices
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_PUBLIC_ENDPOINT
+        sync: false
+      - key: S3_REGION
+        sync: false
+      - key: S3_ACCESS_KEY
+        sync: false
+      - key: S3_SECRET_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: MISTRAL_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false

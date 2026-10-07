@@ -1,6 +1,6 @@
 # ADR 0003: Free deployment on Hugging Face Spaces, Vercel, Supabase and Upstash
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR 0004](0004-render-instead-of-hugging-face.md) (Hugging Face made Docker Spaces paid)
 - **Date:** 2026-10-06
 
 ## Context
